@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Super Hara World - Menu</title>
+  <title>Super Hara World - Sprite</title>
   <style>
     body {
       margin: 0;
@@ -11,90 +11,37 @@
       color: white;
       text-align: center;
     }
-    #menu, #gameContainer {
-      display: none;
-    }
-    .btn {
-      background: #444;
-      color: white;
-      border: none;
-      padding: 15px 30px;
-      font-size: 20px;
-      border-radius: 10px;
-      margin-top: 20px;
-    }
     canvas {
       background: #87CEEB;
       border: 2px solid black;
       display: block;
       margin: 0 auto;
     }
-    .controls {
-      margin-top: 10px;
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-    }
-    .hud {
-      margin-top: 5px;
-      font-size: 18px;
-    }
   </style>
 </head>
 <body>
 
-<div id="menu">
-  <h1>Super Hara World</h1>
-  <button class="btn" onclick="startGame()">JOGAR</button>
-</div>
-
-<div id="gameContainer">
-  <canvas id="game" width="800" height="400"></canvas>
-  <div class="hud">
-    Pontuação: <span id="score">0</span> &nbsp;&nbsp;&nbsp;
-    <span id="message"></span>
-  </div>
-  <div class="controls">
-    <button class="btn" id="left">⮜</button>
-    <button class="btn" id="jump">PULAR</button>
-    <button class="btn" id="right">⮞</button>
-  </div>
-</div>
+<canvas id="game" width="800" height="400"></canvas>
 
 <script>
-  const menu = document.getElementById('menu');
-  const gameContainer = document.getElementById('gameContainer');
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
-  const scoreDisplay = document.getElementById('score');
-  const message = document.getElementById('message');
-
-  function startGame() {
-    menu.style.display = "none";
-    gameContainer.style.display = "block";
-    loop();
-  }
-
-  menu.style.display = "block";
 
   const player = {
     x: 100,
     y: 300,
-    width: 40,
-    height: 40,
-    color: 'red',
+    width: 64,
+    height: 64,
     dy: 0,
-    onGround: false,
     vx: 0,
-    alive: true
+    onGround: false
   };
 
   const gravity = 0.8;
   const jumpStrength = -12;
   const speed = 4;
   let keys = {};
-  let score = 0;
-  let finished = false;
+  let cameraX = 0;
 
   const floor = {
     x: 0,
@@ -104,52 +51,20 @@
     color: 'green'
   };
 
-  const platforms = [
-    { x: 300, y: 280, width: 100, height: 10 },
-    { x: 600, y: 250, width: 120, height: 10 },
-    { x: 900, y: 200, width: 100, height: 10 },
-    { x: 1300, y: 260, width: 150, height: 10 }
-  ];
-
-  const coins = [
-    { x: 320, y: 240, collected: false },
-    { x: 640, y: 210, collected: false },
-    { x: 920, y: 160, collected: false },
-    { x: 1350, y: 220, collected: false }
-  ];
-
-  const flag = {
-    x: 1700,
-    y: 270,
-    width: 20,
-    height: 80
-  };
-
-  let cameraX = 0;
+  const img = new Image();
+  img.src = "sprite_personagem.png";
 
   document.addEventListener('keydown', e => {
     keys[e.key] = true;
-    if (e.key === " " && player.onGround && !finished) {
+    if (e.key === " " && player.onGround) {
       player.dy = jumpStrength;
       player.onGround = false;
     }
   });
+
   document.addEventListener('keyup', e => keys[e.key] = false);
 
-  document.getElementById('left').addEventListener('touchstart', () => keys['ArrowLeft'] = true);
-  document.getElementById('left').addEventListener('touchend', () => keys['ArrowLeft'] = false);
-  document.getElementById('right').addEventListener('touchstart', () => keys['ArrowRight'] = true);
-  document.getElementById('right').addEventListener('touchend', () => keys['ArrowRight'] = false);
-  document.getElementById('jump').addEventListener('touchstart', () => {
-    if (player.onGround && !finished) {
-      player.dy = jumpStrength;
-      player.onGround = false;
-    }
-  });
-
   function update() {
-    if (!player.alive || finished) return;
-
     if (keys['ArrowRight']) player.vx = speed;
     else if (keys['ArrowLeft']) player.vx = -speed;
     else player.vx = 0;
@@ -157,49 +72,17 @@
     player.x += player.vx;
     player.dy += gravity;
     player.y += player.dy;
-    player.onGround = false;
 
     if (player.y + player.height >= floor.y) {
       player.y = floor.y - player.height;
       player.dy = 0;
       player.onGround = true;
-    }
-
-    for (const p of platforms) {
-      if (player.y + player.height <= p.y + 10 &&
-          player.y + player.height + player.dy >= p.y &&
-          player.x + player.width > p.x &&
-          player.x < p.x + p.width) {
-        player.y = p.y - player.height;
-        player.dy = 0;
-        player.onGround = true;
-      }
-    }
-
-    for (const c of coins) {
-      if (!c.collected &&
-          player.x < c.x + 20 &&
-          player.x + player.width > c.x &&
-          player.y < c.y + 20 &&
-          player.y + player.height > c.y) {
-        c.collected = true;
-        score += 100;
-        scoreDisplay.textContent = score;
-      }
+    } else {
+      player.onGround = false;
     }
 
     if (player.x < 0) player.x = 0;
     if (player.x + player.width > floor.width) player.x = floor.width - player.width;
-
-    if (
-      player.x < flag.x + flag.width &&
-      player.x + player.width > flag.x &&
-      player.y < flag.y + flag.height &&
-      player.y + player.height > flag.y
-    ) {
-      finished = true;
-      message.textContent = "Fase Concluída!";
-    }
 
     cameraX = player.x - canvas.width / 2;
   }
@@ -212,31 +95,7 @@
     ctx.fillStyle = floor.color;
     ctx.fillRect(floor.x, floor.y, floor.width, floor.height);
 
-    ctx.fillStyle = 'gray';
-    platforms.forEach(p => {
-      ctx.fillRect(p.x, p.y, p.width, p.height);
-    });
-
-    ctx.fillStyle = 'gold';
-    coins.forEach(c => {
-      if (!c.collected) {
-        ctx.beginPath();
-        ctx.arc(c.x + 10, c.y + 10, 10, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    });
-
-    ctx.fillStyle = player.alive ? player.color : 'black';
-    ctx.fillRect(player.x, player.y, player.width, player.height);
-
-    ctx.fillStyle = 'white';
-    ctx.fillRect(flag.x, flag.y, flag.width, flag.height);
-    ctx.fillStyle = 'red';
-    ctx.beginPath();
-    ctx.moveTo(flag.x + flag.width, flag.y);
-    ctx.lineTo(flag.x + flag.width + 20, flag.y + 10);
-    ctx.lineTo(flag.x + flag.width, flag.y + 20);
-    ctx.fill();
+    ctx.drawImage(img, player.x, player.y, player.width, player.height);
 
     ctx.restore();
   }
@@ -246,6 +105,8 @@
     draw();
     requestAnimationFrame(loop);
   }
+
+  img.onload = loop;
 </script>
 
 </body>
