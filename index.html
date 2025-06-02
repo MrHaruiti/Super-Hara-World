@@ -2,12 +2,11 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Mini Jogo 2D</title>
+  <title>Super Hara World</title>
   <style>
     body {
       margin: 0;
       background: #222;
-      font-family: sans-serif;
       text-align: center;
     }
     canvas {
@@ -54,7 +53,8 @@
     height: 40,
     color: 'red',
     dy: 0,
-    onGround: false
+    onGround: false,
+    vx: 0
   };
 
   const gravity = 0.8;
@@ -65,21 +65,21 @@
   const floor = {
     x: 0,
     y: 350,
-    width: canvas.width,
+    width: 5000, // comprimento total do mundo
     height: 50,
     color: 'green'
   };
 
+  let cameraX = 0;
+
   document.addEventListener('keydown', e => keys[e.key] = true);
   document.addEventListener('keyup', e => keys[e.key] = false);
 
-  // Suporte a toque
+  // Toque
   document.getElementById('left').addEventListener('touchstart', () => keys['ArrowLeft'] = true);
   document.getElementById('left').addEventListener('touchend', () => keys['ArrowLeft'] = false);
-
   document.getElementById('right').addEventListener('touchstart', () => keys['ArrowRight'] = true);
   document.getElementById('right').addEventListener('touchend', () => keys['ArrowRight'] = false);
-
   document.getElementById('jump').addEventListener('touchstart', () => {
     if (player.onGround) {
       player.dy = jumpStrength;
@@ -88,27 +88,45 @@
   });
 
   function update() {
-    if (keys['ArrowRight']) player.x += speed;
-    if (keys['ArrowLeft']) player.x -= speed;
+    if (keys['ArrowRight']) player.vx = speed;
+    else if (keys['ArrowLeft']) player.vx = -speed;
+    else player.vx = 0;
+
+    player.x += player.vx;
 
     player.dy += gravity;
     player.y += player.dy;
 
+    // chão
     if (player.y + player.height >= floor.y) {
       player.y = floor.y - player.height;
       player.dy = 0;
       player.onGround = true;
     }
+
+    // câmera centralizada
+    cameraX = player.x - canvas.width / 2;
+
+    // limites do mundo
+    if (player.x < 0) player.x = 0;
+    if (player.x + player.width > floor.width) player.x = floor.width - player.width;
   }
 
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    ctx.save();
+    ctx.translate(-cameraX, 0); // mover o mundo
+
+    // chão
     ctx.fillStyle = floor.color;
     ctx.fillRect(floor.x, floor.y, floor.width, floor.height);
 
+    // personagem
     ctx.fillStyle = player.color;
     ctx.fillRect(player.x, player.y, player.width, player.height);
+
+    ctx.restore();
   }
 
   function loop() {
