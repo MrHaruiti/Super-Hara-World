@@ -2,12 +2,13 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Super Hara World - Plataformas</title>
+  <title>Super Hara World - Moedas</title>
   <style>
     body {
       margin: 0;
       background: #222;
       text-align: center;
+      color: white;
     }
     canvas {
       background: #87CEEB;
@@ -30,11 +31,17 @@
       border-radius: 8px;
       touch-action: manipulation;
     }
+    .hud {
+      text-align: center;
+      margin-top: 5px;
+      font-size: 18px;
+    }
   </style>
 </head>
 <body>
 
 <canvas id="game" width="800" height="400"></canvas>
+<div class="hud">Pontuação: <span id="score">0</span></div>
 
 <div class="controls">
   <button class="btn" id="left">⮜</button>
@@ -45,6 +52,7 @@
 <script>
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
+  const scoreDisplay = document.getElementById('score');
 
   const player = {
     x: 100,
@@ -54,13 +62,15 @@
     color: 'red',
     dy: 0,
     onGround: false,
-    vx: 0
+    vx: 0,
+    alive: true
   };
 
   const gravity = 0.8;
   const jumpStrength = -12;
   const speed = 4;
   let keys = {};
+  let score = 0;
 
   const floor = {
     x: 0,
@@ -75,6 +85,13 @@
     { x: 600, y: 250, width: 120, height: 10 },
     { x: 900, y: 200, width: 100, height: 10 },
     { x: 1300, y: 260, width: 150, height: 10 }
+  ];
+
+  const coins = [
+    { x: 320, y: 240, collected: false },
+    { x: 640, y: 210, collected: false },
+    { x: 920, y: 160, collected: false },
+    { x: 1350, y: 220, collected: false }
   ];
 
   let cameraX = 0;
@@ -94,6 +111,8 @@
   });
 
   function update() {
+    if (!player.alive) return;
+
     if (keys['ArrowRight']) player.vx = speed;
     else if (keys['ArrowLeft']) player.vx = -speed;
     else player.vx = 0;
@@ -103,14 +122,12 @@
     player.y += player.dy;
     player.onGround = false;
 
-    // chão
     if (player.y + player.height >= floor.y) {
       player.y = floor.y - player.height;
       player.dy = 0;
       player.onGround = true;
     }
 
-    // colisão com plataformas
     for (const p of platforms) {
       if (player.y + player.height <= p.y + 10 &&
           player.y + player.height + player.dy >= p.y &&
@@ -119,6 +136,18 @@
         player.y = p.y - player.height;
         player.dy = 0;
         player.onGround = true;
+      }
+    }
+
+    for (const c of coins) {
+      if (!c.collected &&
+          player.x < c.x + 20 &&
+          player.x + player.width > c.x &&
+          player.y < c.y + 20 &&
+          player.y + player.height > c.y) {
+        c.collected = true;
+        score += 100;
+        scoreDisplay.textContent = score;
       }
     }
 
@@ -141,7 +170,12 @@
       ctx.fillRect(p.x, p.y, p.width, p.height);
     });
 
-    ctx.fillStyle = player.color;
+    ctx.fillStyle = 'gold';
+    coins.forEach(c => {
+      if (!c.collected) ctx.beginPath(), ctx.arc(c.x + 10, c.y + 10, 10, 0, Math.PI * 2), ctx.fill();
+    });
+
+    ctx.fillStyle = player.alive ? player.color : 'black';
     ctx.fillRect(player.x, player.y, player.width, player.height);
 
     ctx.restore();
