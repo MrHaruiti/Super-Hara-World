@@ -3,7 +3,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Super Hara World - Completo v2</title>
+  <title>Super Hara World - Sons</title>
   <style>
     body {
       margin: 0;
@@ -56,6 +56,11 @@
   <button class="btn" onclick="location.reload()">Tentar Novamente</button>
 </div>
 
+<audio id="jumpSound" src="https://cdn.pixabay.com/audio/2022/03/15/audio_2c34371fb2.mp3"></audio>
+<audio id="coinSound" src="https://cdn.pixabay.com/audio/2022/03/15/audio_730d25e73e.mp3"></audio>
+<audio id="deathSound" src="https://cdn.pixabay.com/audio/2022/03/15/audio_fdd2057223.mp3"></audio>
+<audio id="winSound" src="https://cdn.pixabay.com/audio/2022/03/15/audio_7a1e8cf262.mp3"></audio>
+
 <script>
 const menu = document.getElementById('menu');
 const gameContainer = document.getElementById('gameContainer');
@@ -64,6 +69,11 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const scoreDisplay = document.getElementById('score');
 const message = document.getElementById('message');
+
+const jumpSound = document.getElementById('jumpSound');
+const coinSound = document.getElementById('coinSound');
+const deathSound = document.getElementById('deathSound');
+const winSound = document.getElementById('winSound');
 
 let score = 0;
 let finished = false;
@@ -131,6 +141,8 @@ document.addEventListener('keydown', e => {
   if (e.key === " " && player.jumpCount < 2 && player.alive) {
     player.dy = jumpStrength;
     player.jumpCount++;
+    jumpSound.currentTime = 0;
+    jumpSound.play();
   }
 });
 document.addEventListener('keyup', e => keys[e.key] = false);
@@ -180,6 +192,8 @@ function update() {
       c.collected = true;
       score += 100;
       scoreDisplay.textContent = score;
+      coinSound.currentTime = 0;
+      coinSound.play();
     }
   }
 
@@ -199,6 +213,7 @@ function update() {
         player.dy = jumpStrength / 1.5;
       } else {
         player.alive = false;
+        deathSound.play();
       }
     }
   }
@@ -211,6 +226,7 @@ function update() {
   ) {
     finished = true;
     message.textContent = "Fase Concluída!";
+    winSound.play();
   }
 
   if (player.x < 0) player.x = 0;
