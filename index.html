@@ -3,37 +3,13 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Super Hara World - Sons</title>
+  <title>Super Hara World - Blocos</title>
   <style>
-    body {
-      margin: 0;
-      background: #111;
-      font-family: sans-serif;
-      color: white;
-      text-align: center;
-    }
-    #menu, #gameContainer, #gameOver {
-      display: none;
-    }
-    .btn {
-      background: #444;
-      color: white;
-      border: none;
-      padding: 15px 30px;
-      font-size: 20px;
-      border-radius: 10px;
-      margin-top: 20px;
-    }
-    canvas {
-      background: #87CEEB;
-      border: 2px solid black;
-      display: block;
-      margin: 0 auto;
-    }
-    .hud {
-      margin-top: 5px;
-      font-size: 18px;
-    }
+    body { margin: 0; background: #111; color: white; text-align: center; font-family: sans-serif; }
+    #menu, #gameContainer, #gameOver { display: none; }
+    .btn { background: #444; color: white; border: none; padding: 15px 30px; font-size: 20px; border-radius: 10px; margin-top: 20px; }
+    canvas { background: #87CEEB; border: 2px solid black; display: block; margin: 0 auto; }
+    .hud { margin-top: 5px; font-size: 18px; }
   </style>
 </head>
 <body>
@@ -47,47 +23,27 @@
   <canvas id="game" width="800" height="400"></canvas>
   <div class="hud">
     Pontuação: <span id="score">0</span>
-    <span id="message"></span>
   </div>
 </div>
 
-<div id="gameOver">
-  <h1>GAME OVER</h1>
-  <button class="btn" onclick="location.reload()">Tentar Novamente</button>
-</div>
-
-<audio id="jumpSound" src="https://cdn.pixabay.com/audio/2022/03/15/audio_2c34371fb2.mp3"></audio>
 <audio id="coinSound" src="https://cdn.pixabay.com/audio/2022/03/15/audio_730d25e73e.mp3"></audio>
-<audio id="deathSound" src="https://cdn.pixabay.com/audio/2022/03/15/audio_fdd2057223.mp3"></audio>
-<audio id="winSound" src="https://cdn.pixabay.com/audio/2022/03/15/audio_7a1e8cf262.mp3"></audio>
+<audio id="blockBreak" src="https://cdn.pixabay.com/audio/2022/03/15/audio_2dfb6dfc33.mp3"></audio>
 
 <script>
 const menu = document.getElementById('menu');
 const gameContainer = document.getElementById('gameContainer');
-const gameOverScreen = document.getElementById('gameOver');
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const scoreDisplay = document.getElementById('score');
-const message = document.getElementById('message');
-
-const jumpSound = document.getElementById('jumpSound');
 const coinSound = document.getElementById('coinSound');
-const deathSound = document.getElementById('deathSound');
-const winSound = document.getElementById('winSound');
+const blockBreak = document.getElementById('blockBreak');
 
 let score = 0;
-let finished = false;
 
 const player = {
-  x: 100,
-  y: 300,
-  width: 64,
-  height: 64,
-  dy: 0,
-  vx: 0,
-  onGround: false,
-  jumpCount: 0,
-  alive: true
+  x: 100, y: 300, width: 64, height: 64,
+  dy: 0, vx: 0, onGround: false,
+  jumpCount: 0, alive: true
 };
 
 const gravity = 0.8;
@@ -96,34 +52,12 @@ const speed = 4;
 let keys = {};
 let cameraX = 0;
 
-const floor = {
-  x: 0,
-  y: 350,
-  width: 5000,
-  height: 50,
-  color: 'green'
-};
+const floor = { x: 0, y: 350, width: 3000, height: 50 };
 
-const platforms = [
-  { x: 300, y: 280, width: 100, height: 10 },
-  { x: 600, y: 250, width: 120, height: 10 },
-  { x: 900, y: 200, width: 100, height: 10 },
-  { x: 1300, y: 260, width: 150, height: 10 }
+const blocks = [
+  { x: 400, y: 200, width: 40, height: 40, type: "surpresa", active: true },
+  { x: 500, y: 200, width: 40, height: 40, type: "quebravel", active: true }
 ];
-
-const coins = [
-  { x: 320, y: 240, collected: false },
-  { x: 640, y: 210, collected: false },
-  { x: 920, y: 160, collected: false },
-  { x: 1350, y: 220, collected: false }
-];
-
-const enemies = [
-  { x: 500, y: 310, width: 40, height: 40, vx: 1, dead: false },
-  { x: 1150, y: 310, width: 40, height: 40, vx: -1, dead: false }
-];
-
-const flag = { x: 1700, y: 270, width: 20, height: 80 };
 
 const img = new Image();
 img.src = "sprite_personagem.png";
@@ -133,27 +67,19 @@ function startGame() {
   gameContainer.style.display = "block";
   loop();
 }
-
 menu.style.display = "block";
 
 document.addEventListener('keydown', e => {
   keys[e.key] = true;
-  if (e.key === " " && player.jumpCount < 2 && player.alive) {
+  if (e.key === " " && player.jumpCount < 2) {
     player.dy = jumpStrength;
     player.jumpCount++;
-    jumpSound.currentTime = 0;
-    jumpSound.play();
   }
 });
 document.addEventListener('keyup', e => keys[e.key] = false);
 
 function update() {
-  if (!player.alive) {
-    gameContainer.style.display = "none";
-    gameOverScreen.style.display = "block";
-    return;
-  }
-  if (finished) return;
+  if (!player.alive) return;
 
   player.vx = 0;
   if (keys['ArrowRight']) player.vx = speed;
@@ -171,62 +97,30 @@ function update() {
     player.jumpCount = 0;
   }
 
-  for (const p of platforms) {
-    if (player.y + player.height <= p.y + 10 &&
-        player.y + player.height + player.dy >= p.y &&
-        player.x + player.width > p.x &&
-        player.x < p.x + p.width) {
-      player.y = p.y - player.height;
-      player.dy = 0;
-      player.onGround = true;
-      player.jumpCount = 0;
-    }
-  }
+  for (const b of blocks) {
+    if (!b.active) continue;
 
-  for (const c of coins) {
-    if (!c.collected &&
-        player.x < c.x + 20 &&
-        player.x + player.width > c.x &&
-        player.y < c.y + 20 &&
-        player.y + player.height > c.y) {
-      c.collected = true;
-      score += 100;
-      scoreDisplay.textContent = score;
-      coinSound.currentTime = 0;
-      coinSound.play();
-    }
-  }
+    // colisão superior (subir e bater em baixo do bloco)
+    const headHit = player.y <= b.y + b.height &&
+                    player.y + player.height > b.y + b.height &&
+                    player.x + player.width > b.x &&
+                    player.x < b.x + b.width &&
+                    player.dy < 0;
 
-  for (const e of enemies) {
-    if (e.dead) continue;
-    e.x += e.vx;
-    if (e.x <= 400 || e.x >= 1400) e.vx *= -1;
-
-    const hit = player.x < e.x + e.width &&
-                player.x + player.width > e.x &&
-                player.y < e.y + e.height &&
-                player.y + player.height > e.y;
-
-    if (hit) {
-      if (player.dy > 0 && player.y + player.height - e.y < 20) {
-        e.dead = true;
-        player.dy = jumpStrength / 1.5;
-      } else {
-        player.alive = false;
-        deathSound.play();
+    if (headHit) {
+      if (b.type === "surpresa") {
+        coinSound.currentTime = 0;
+        coinSound.play();
+        b.active = false;
+        score += 100;
+        scoreDisplay.textContent = score;
+      } else if (b.type === "quebravel") {
+        blockBreak.currentTime = 0;
+        blockBreak.play();
+        b.active = false;
       }
+      player.dy = 1; // forçar queda
     }
-  }
-
-  if (
-    player.x < flag.x + flag.width &&
-    player.x + player.width > flag.x &&
-    player.y < flag.y + flag.height &&
-    player.y + player.height > flag.y
-  ) {
-    finished = true;
-    message.textContent = "Fase Concluída!";
-    winSound.play();
   }
 
   if (player.x < 0) player.x = 0;
@@ -240,41 +134,17 @@ function draw() {
   ctx.save();
   ctx.translate(-cameraX, 0);
 
-  ctx.fillStyle = floor.color;
+  ctx.fillStyle = "green";
   ctx.fillRect(floor.x, floor.y, floor.width, floor.height);
 
-  ctx.fillStyle = 'gray';
-  platforms.forEach(p => {
-    ctx.fillRect(p.x, p.y, p.width, p.height);
-  });
-
-  ctx.fillStyle = 'gold';
-  coins.forEach(c => {
-    if (!c.collected) {
-      ctx.beginPath();
-      ctx.arc(c.x + 10, c.y + 10, 10, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  });
+  for (const b of blocks) {
+    if (!b.active) continue;
+    if (b.type === "surpresa") ctx.fillStyle = "orange";
+    else ctx.fillStyle = "brown";
+    ctx.fillRect(b.x, b.y, b.width, b.height);
+  }
 
   ctx.drawImage(img, player.x, player.y, player.width, player.height);
-
-  enemies.forEach(e => {
-    if (!e.dead) {
-      ctx.fillStyle = "purple";
-      ctx.fillRect(e.x, e.y, e.width, e.height);
-    }
-  });
-
-  ctx.fillStyle = 'white';
-  ctx.fillRect(flag.x, flag.y, flag.width, flag.height);
-  ctx.fillStyle = 'red';
-  ctx.beginPath();
-  ctx.moveTo(flag.x + flag.width, flag.y);
-  ctx.lineTo(flag.x + flag.width + 20, flag.y + 10);
-  ctx.lineTo(flag.x + flag.width, flag.y + 20);
-  ctx.fill();
-
   ctx.restore();
 }
 
@@ -284,6 +154,5 @@ function loop() {
   requestAnimationFrame(loop);
 }
 </script>
-
 </body>
 </html>
