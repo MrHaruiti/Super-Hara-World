@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Super Hara World</title>
+  <title>Super Hara World - Plataformas</title>
   <style>
     body {
       margin: 0;
@@ -65,17 +65,23 @@
   const floor = {
     x: 0,
     y: 350,
-    width: 5000, // comprimento total do mundo
+    width: 5000,
     height: 50,
     color: 'green'
   };
+
+  const platforms = [
+    { x: 300, y: 280, width: 100, height: 10 },
+    { x: 600, y: 250, width: 120, height: 10 },
+    { x: 900, y: 200, width: 100, height: 10 },
+    { x: 1300, y: 260, width: 150, height: 10 }
+  ];
 
   let cameraX = 0;
 
   document.addEventListener('keydown', e => keys[e.key] = true);
   document.addEventListener('keyup', e => keys[e.key] = false);
 
-  // Toque
   document.getElementById('left').addEventListener('touchstart', () => keys['ArrowLeft'] = true);
   document.getElementById('left').addEventListener('touchend', () => keys['ArrowLeft'] = false);
   document.getElementById('right').addEventListener('touchstart', () => keys['ArrowRight'] = true);
@@ -93,9 +99,9 @@
     else player.vx = 0;
 
     player.x += player.vx;
-
     player.dy += gravity;
     player.y += player.dy;
+    player.onGround = false;
 
     // chão
     if (player.y + player.height >= floor.y) {
@@ -104,25 +110,37 @@
       player.onGround = true;
     }
 
-    // câmera centralizada
-    cameraX = player.x - canvas.width / 2;
+    // colisão com plataformas
+    for (const p of platforms) {
+      if (player.y + player.height <= p.y + 10 &&
+          player.y + player.height + player.dy >= p.y &&
+          player.x + player.width > p.x &&
+          player.x < p.x + p.width) {
+        player.y = p.y - player.height;
+        player.dy = 0;
+        player.onGround = true;
+      }
+    }
 
-    // limites do mundo
     if (player.x < 0) player.x = 0;
     if (player.x + player.width > floor.width) player.x = floor.width - player.width;
+
+    cameraX = player.x - canvas.width / 2;
   }
 
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
     ctx.save();
-    ctx.translate(-cameraX, 0); // mover o mundo
+    ctx.translate(-cameraX, 0);
 
-    // chão
     ctx.fillStyle = floor.color;
     ctx.fillRect(floor.x, floor.y, floor.width, floor.height);
 
-    // personagem
+    ctx.fillStyle = 'gray';
+    platforms.forEach(p => {
+      ctx.fillRect(p.x, p.y, p.width, p.height);
+    });
+
     ctx.fillStyle = player.color;
     ctx.fillRect(player.x, player.y, player.width, player.height);
 
