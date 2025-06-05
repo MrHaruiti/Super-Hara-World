@@ -197,6 +197,78 @@
   const canvas = document.getElementById("game");
   const ctx = canvas.getContext("2d");
 
+  // Create offscreen canvas for donut enemy sprite
+  const donutCanvas = document.createElement('canvas');
+  donutCanvas.width = 40;
+  donutCanvas.height = 40;
+  const donutCtx = donutCanvas.getContext('2d');
+
+  // Draw simple donut shape
+  function drawDonut() {
+    const cx = 20, cy = 20, outerRadius = 18, innerRadius = 8;
+    // Outer circle pink
+    donutCtx.fillStyle = '#FF69B4'; 
+    donutCtx.beginPath();
+    donutCtx.arc(cx, cy, outerRadius, 0, 2 * Math.PI);
+    donutCtx.fill();
+    // Inner circle to make hole
+    donutCtx.fillStyle = '#FFF0F5'; 
+    donutCtx.beginPath();
+    donutCtx.arc(cx, cy, innerRadius, 0, 2 * Math.PI);
+    donutCtx.fill();
+    // Sprinkles (small rectangles)
+    donutCtx.fillStyle = '#FFD700';
+    for(let i=0; i<10; i++){
+      const angle = i*(2*Math.PI/10);
+      const x = cx + Math.cos(angle)*10;
+      const y = cy + Math.sin(angle)*10;
+      donutCtx.fillRect(x-2, y-1, 4, 2);
+    }
+  }
+  drawDonut();
+
+  // Create offscreen canvas for crow enemy sprite
+  const crowCanvas = document.createElement('canvas');
+  crowCanvas.width = 40;
+  crowCanvas.height = 30;
+  const crowCtx = crowCanvas.getContext('2d');
+
+  // Draw simple stylized crow (black body with wing)
+  function drawCrow() {
+    crowCtx.clearRect(0, 0, 40, 30);
+    // Body - black ellipse
+    crowCtx.fillStyle = 'black';
+    crowCtx.beginPath();
+    crowCtx.ellipse(20, 15, 15, 10, 0, 0, 2 * Math.PI);
+    crowCtx.fill();
+    // Wing - grey overlay shape
+    crowCtx.fillStyle = '#555';
+    crowCtx.beginPath();
+    crowCtx.moveTo(10, 15);
+    crowCtx.quadraticCurveTo(20, 5, 30, 15);
+    crowCtx.quadraticCurveTo(20, 12, 10, 15);
+    crowCtx.fill();
+    // Eye - white circle
+    crowCtx.fillStyle = 'white';
+    crowCtx.beginPath();
+    crowCtx.arc(28, 13, 4, 0, 2 * Math.PI);
+    crowCtx.fill();
+    // Pupil - black circle
+    crowCtx.fillStyle = 'black';
+    crowCtx.beginPath();
+    crowCtx.arc(29, 13, 2, 0, 2 * Math.PI);
+    crowCtx.fill();
+    // Beak (orange triangle)
+    crowCtx.fillStyle = 'orange';
+    crowCtx.beginPath();
+    crowCtx.moveTo(35, 15);
+    crowCtx.lineTo(40, 13);
+    crowCtx.lineTo(35, 18);
+    crowCtx.closePath();
+    crowCtx.fill();
+  }
+  drawCrow();
+
   const menu = document.getElementById("menu");
   const gameContainer = document.getElementById("gameContainer");
   const gameOver = document.getElementById("gameOver");
@@ -243,21 +315,40 @@
   const wingFlyDuration = 4000;
 
   function generateEnemies(level) {
-    const baseEnemies = [
+    const baseGroundEnemies = [
       { x: 500, y: 310, width: 40, height: 40, vx: 1, dead: false },
       { x: 1200, y: 310, width: 40, height: 40, vx: -1, dead: false },
       { x: 1800, y: 310, width: 40, height: 40, vx: 1, dead: false },
       { x: 2400, y: 310, width: 40, height: 40, vx: -1, dead: false },
       { x: 2800, y: 310, width: 40, height: 40, vx: 1, dead: false },
-      { x: 3200, y: 310, width: 40, height: 40, vx: -1, dead: false },  
+      { x: 3200, y: 310, width: 40, height: 40, vx: -1, dead: false },
     ];
-    let count = Math.min(level + 1, baseEnemies.length);
-    let speedMultiplier = 1 + (level -1)*0.3;
-    return baseEnemies.slice(0, count).map(enemy => ({
-      ...enemy,
-      vx: (enemy.vx > 0 ? 1 : -1) * speedMultiplier,
-      dead: false
-    }));
+    const flyingBase = [
+      { x: 700, y: 200, width: 40, height: 30, vx: 1.5, vy: 0.8, vyDir: 1, dead: false },
+      { x: 1500, y: 180, width: 40, height: 30, vx: -1.2, vy: 0.6, vyDir: 1, dead: false },
+      { x: 2200, y: 220, width: 40, height: 30, vx: 1.8, vy: 0.7, vyDir: 1, dead: false },
+    ];
+
+    let enemies = [];
+    let speedMultiplier = 1 + (level - 1) * 0.3;
+
+    let countGround = Math.min(level + 1, baseGroundEnemies.length);
+    for(let i=0; i < countGround; i++){
+      let e = {...baseGroundEnemies[i]};
+      e.vx = (e.vx > 0 ? 1 : -1) * speedMultiplier;
+      enemies.push(e);
+    }
+
+    if(level === 2){
+      flyingBase.forEach(fly => {
+        let f = {...fly};
+        f.vx = f.vx * speedMultiplier;
+        f.vyDir = 1;
+        enemies.push(f);
+      });
+    }
+
+    return enemies;
   }
 
   function generateBlocksForLevel(level) {
@@ -536,9 +627,21 @@
 
     enemies.forEach(e => {
       if(e.dead) return;
-      e.x += e.vx;
-      if(e.x <= 0) e.vx = Math.abs(e.vx);
-      if(e.x + e.width >= floor.width) e.vx = -Math.abs(e.vx);
+
+      if(e.vy !== undefined){
+        e.x += e.vx;
+        e.y += e.vy * e.vyDir;
+
+        if(e.y <= 170) e.vyDir = 1;
+        if(e.y >= 240) e.vyDir = -1;
+
+        if(e.x <= 0) e.vx = Math.abs(e.vx);
+        if(e.x + e.width >= floor.width) e.vx = -Math.abs(e.vx);
+      } else {
+        e.x += e.vx;
+        if(e.x <= 0) e.vx = Math.abs(e.vx);
+        if(e.x + e.width >= floor.width) e.vx = -Math.abs(e.vx);
+      }
 
       const hit = player.x < e.x + e.width &&
                   player.x + player.width > e.x &&
@@ -707,16 +810,13 @@
 
     enemies.forEach(e => {
       if(!e.dead){
-        ctx.fillStyle = "purple";
-        ctx.fillRect(e.x, e.y, e.width, e.height);
-        ctx.fillStyle = "white";
-        ctx.beginPath();
-        ctx.arc(e.x + 10, e.y + 15, 5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "black";
-        ctx.beginPath();
-        ctx.arc(e.x + 10, e.y + 15, 2, 0, Math.PI * 2);
-        ctx.fill();
+        if(e.vy !== undefined){
+          // flying enemy: crow sprite from offscreen canvas
+          ctx.drawImage(crowCanvas, e.x, e.y, e.width, e.height);
+        } else {
+          // ground enemy: donut sprite from offscreen canvas
+          ctx.drawImage(donutCanvas, e.x, e.y, e.width, e.height);
+        }
       }
     });
 
@@ -739,8 +839,169 @@
     draw();
     loopId = requestAnimationFrame(gameLoop);
   }
+
+  // Usado em update() replicado para manter contexto
+  function update() {
+    if(!player.alive){
+      if(gameContainer.classList.contains("active")){
+        gameContainer.classList.remove("active");
+      }
+      gameOver.classList.add("active");
+      deathSound.currentTime = 0;
+      deathSound.play();
+      return;
+    }
+
+    player.vx = 0;
+    if(keys["arrowright"] || keys["d"]) player.vx = speed;
+    if(keys["arrowleft"] || keys["a"]) player.vx = -speed;
+
+    player.x += player.vx;
+
+    if(player.x < 0) player.x = 0;
+    if(player.x + player.width > floor.width) player.x = floor.width - player.width;
+
+    if(hasWing && wingFlyTime > 0 && keys["arrowup"]) {
+      player.dy += gravity * 0.15;
+      player.dy -= 0.8;
+      wingFlyTime -= 16;
+      updatePowerupHUD();
+      if(wingFlyTime <= 0){
+        hasWing = false;
+        updatePowerupHUD();
+      }
+    } else {
+      player.dy += gravity;
+    }
+
+    player.y += player.dy;
+
+    player.onGround = false;
+
+    if(player.y + player.height >= floor.y){
+      player.y = floor.y - player.height;
+      player.dy = 0;
+      player.onGround = true;
+      player.jumpCount = 0;
+      jumpTouchCount = 0;
+      if(hasWing) wingFlyTime = wingFlyDuration;
+    }
+
+    platforms.forEach(p => {
+      if(player.y + player.height <= p.y + 10 &&
+         player.y + player.height + player.dy >= p.y &&
+         player.x + player.width > p.x &&
+         player.x < p.x + p.width) {
+        player.y = p.y - player.height;
+        player.dy = 0;
+        player.onGround = true;
+        player.jumpCount = 0;
+        jumpTouchCount = 0;
+        if(hasWing) wingFlyTime = wingFlyDuration;
+      }
+    });
+
+    blocks.forEach(b => {
+      if(!b.active) return;
+      const hitBottom = player.y <= b.y + b.height &&
+                        player.y + player.height > b.y + b.height &&
+                        player.x + player.width > b.x &&
+                        player.x < b.x + b.width &&
+                        player.dy < 0;
+      if(hitBottom){
+        if(b.type === "surprise"){
+          coinSound.currentTime = 0;
+          coinSound.play();
+          b.active = false;
+          score += 100;
+          scoreDisplay.textContent = score;
+        } else if(b.type === "breakable"){
+          blockSound.currentTime = 0;
+          blockSound.play();
+          b.active = false;
+        } else if(b.type === "wing"){
+          coinSound.currentTime = 0;
+          coinSound.play();
+          b.active = false;
+          hasWing = true;
+          wingFlyTime = wingFlyDuration;
+          updatePowerupHUD();
+        }
+        player.dy = 1;
+      }
+    });
+
+    coins.forEach(c => {
+      if(!c.collected &&
+         player.x < c.x + 20 &&
+         player.x + player.width > c.x &&
+         player.y < c.y + 20 &&
+         player.y + player.height > c.y){
+        c.collected = true;
+        score += 100;
+        scoreDisplay.textContent = score;
+        coinSound.currentTime = 0;
+        coinSound.play();
+      }
+    });
+
+    enemies.forEach(e => {
+      if(e.dead) return;
+
+      if(e.vy !== undefined){
+        e.x += e.vx;
+        e.y += e.vy * e.vyDir;
+
+        if(e.y <= 170) e.vyDir = 1;
+        if(e.y >= 240) e.vyDir = -1;
+
+        if(e.x <= 0) e.vx = Math.abs(e.vx);
+        if(e.x + e.width >= floor.width) e.vx = -Math.abs(e.vx);
+      } else {
+        e.x += e.vx;
+        if(e.x <= 0) e.vx = Math.abs(e.vx);
+        if(e.x + e.width >= floor.width) e.vx = -Math.abs(e.vx);
+      }
+
+      const hit = player.x < e.x + e.width &&
+                  player.x + player.width > e.x &&
+                  player.y < e.y + e.height &&
+                  player.y + player.height > e.y;
+      if(hit){
+        if(player.dy > 0 && (player.y + player.height - e.y) < 20){
+          e.dead = true;
+          player.dy = baseJumpStrength / 1.5;
+        } else {
+          player.alive = false;
+        }
+      }
+    });
+
+    if(player.x < flag.x + flag.width &&
+       player.x + player.width > flag.x &&
+       player.y < flag.y + flag.height &&
+       player.y + player.height > flag.y) {
+
+      if(currentLevel < 5){
+        currentLevel++;
+        loadLevel(currentLevel);
+      } else {
+        gameContainer.classList.remove("active");
+        winScreen.classList.add("active");
+        finalScoreDisplay.textContent = score;
+        powerupIndicator.textContent = "";
+        winSound.currentTime = 0;
+        winSound.play();
+      }
+    }
+
+    cameraX = player.x - canvas.width / 2;
+    if(cameraX < 0) cameraX = 0;
+    if(cameraX + canvas.width > floor.width) cameraX = floor.width - canvas.width;
+  }
+
+  gameLoop();
 })();
 </script>
 </body>
 </html>
-
