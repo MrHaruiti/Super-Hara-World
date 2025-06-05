@@ -1,293 +1,483 @@
-
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Super Hara World - Final</title>
   <style>
-    body { margin: 0; background: #111; color: white; font-family: sans-serif; }
-    #menu, #gameContainer, #gameOver, #winScreen { display: none; text-align: center; }
-    canvas { background: #87CEEB; display: block; margin: 0 auto; border: 2px solid black; }
-    .btn { background: #444; color: white; border: none; padding: 10px 20px; font-size: 20px; margin-top: 20px; border-radius: 10px; }
-    .hud { text-align: center; font-size: 18px; margin-top: 5px; }
+    :root {
+      --bg-color: #111;
+      --font-color: #eee;
+      --btn-bg: #0066ff;
+      --btn-hover-bg: #0050cc;
+      --btn-radius: 12px;
+      --btn-padding: 12px 24px;
+      --hud-font-size: 18px;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg-color);
+      color: var(--font-color);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      user-select: none;
+    }
+    #menu, #gameContainer, #gameOver, #winScreen {
+      text-align: center;
+      display: none;
+      width: 90vw;
+      max-width: 900px;
+    }
+    #menu.active, #gameContainer.active, #gameOver.active, #winScreen.active {
+      display: block;
+    }
+    h1 {
+      font-weight: 900;
+      font-size: 3rem;
+      margin-bottom: 20px;
+      text-shadow: 0 0 10px #0099ff;
+      user-select: none;
+    }
+    button.btn {
+      background-color: var(--btn-bg);
+      color: white;
+      border: none;
+      padding: var(--btn-padding);
+      font-size: 1.25rem;
+      cursor: pointer;
+      border-radius: var(--btn-radius);
+      transition: background-color 0.3s ease;
+      user-select: none;
+    }
+    button.btn:hover {
+      background-color: var(--btn-hover-bg);
+    }
+    canvas {
+      background: linear-gradient(to bottom, #87cefa 0%, #1e90ff 100%);
+      display: block;
+      margin: 0 auto;
+      border: 3px solid #000;
+      border-radius: 8px;
+      max-width: 100%;
+      height: 400px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.7);
+    }
+    .hud {
+      font-size: var(--hud-font-size);
+      margin-top: 8px;
+      color: #ffd700;
+      text-shadow: 0 0 5px #aaa;
+      font-weight: 700;
+      user-select: none;
+    }
+    /* Responsive */
+    @media (max-width: 600px) {
+      canvas {
+        height: 300px;
+      }
+      h1 {
+        font-size: 2rem;
+      }
+      button.btn {
+        font-size: 1rem;
+      }
+      .hud {
+        font-size: 16px;
+      }
+    }
   </style>
 </head>
 <body>
 
-<div id="menu">
+<div id="menu" class="active">
   <h1>Super Hara World</h1>
-  <button class="btn" onclick="startGame()">JOGAR</button>
+  <button class="btn" id="startBtn">JOGAR</button>
 </div>
 
 <div id="gameContainer">
-  <canvas id="game" width="800" height="400"></canvas>
+  <canvas id="game" width="800" height="400" tabindex="0" aria-label="Área do jogo"></canvas>
   <div class="hud">Pontuação: <span id="score">0</span></div>
 </div>
 
 <div id="gameOver">
   <h1>GAME OVER</h1>
-  <button class="btn" onclick="location.reload()">Tentar Novamente</button>
+  <button class="btn" id="retryBtn">Tentar Novamente</button>
 </div>
 
 <div id="winScreen">
   <h1>Parabéns! Você venceu!</h1>
   <p>Pontuação final: <span id="finalScore"></span></p>
-  <button class="btn" onclick="location.reload()">Jogar Novamente</button>
+  <button class="btn" id="winRetryBtn">Jogar Novamente</button>
 </div>
 
-<audio id="jumpSound" src="jump.mp3"></audio>
-<audio id="coinSound" src="coin.mp3"></audio>
-<audio id="deathSound" src="death.mp3"></audio>
-<audio id="winSound" src="win.mp3"></audio>
-<audio id="blockSound" src="coin.mp3"></audio>
+<!-- Sons usando arquivos públicos CDN para testes ou deixar sem som para evitar erros -->
+<audio id="jumpSound" src="https://actions.google.com/sounds/v1/cartoon/slide_whistle_to_drum_hit.ogg"></audio>
+<audio id="coinSound" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
+<audio id="deathSound" src="https://actions.google.com/sounds/v1/cartoon/metal_twang.ogg"></audio>
+<audio id="winSound" src="https://actions.google.com/sounds/v1/cartoon/concussive_drum_hit.ogg"></audio>
+<audio id="blockSound" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
 
 <script>
-let canvas = document.getElementById("game");
-let ctx = canvas.getContext("2d");
+(() => {
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
 
-let menu = document.getElementById("menu");
-let gameContainer = document.getElementById("gameContainer");
-let gameOver = document.getElementById("gameOver");
-let winScreen = document.getElementById("winScreen");
-let scoreDisplay = document.getElementById("score");
-let finalScoreDisplay = document.getElementById("finalScore");
+  const menu = document.getElementById("menu");
+  const gameContainer = document.getElementById("gameContainer");
+  const gameOver = document.getElementById("gameOver");
+  const winScreen = document.getElementById("winScreen");
+  const scoreDisplay = document.getElementById("score");
+  const finalScoreDisplay = document.getElementById("finalScore");
 
-let jumpSound = document.getElementById("jumpSound");
-let coinSound = document.getElementById("coinSound");
-let deathSound = document.getElementById("deathSound");
-let winSound = document.getElementById("winSound");
-let blockSound = document.getElementById("blockSound");
+  const jumpSound = document.getElementById("jumpSound");
+  const coinSound = document.getElementById("coinSound");
+  const deathSound = document.getElementById("deathSound");
+  const winSound = document.getElementById("winSound");
+  const blockSound = document.getElementById("blockSound");
 
-let keys = {};
-let player, gravity = 0.8, jumpStrength = -14, speed = 4, currentLevel = 1, cameraX = 0;
-let platforms, enemies, coins, flag, floor, blocks, score = 0;
-const img = new Image();
-img.src = "sprite_personagem.png";
+  const startBtn = document.getElementById("startBtn");
+  const retryBtn = document.getElementById("retryBtn");
+  const winRetryBtn = document.getElementById("winRetryBtn");
 
-function startGame() {
-  menu.style.display = "none";
-  gameContainer.style.display = "block";
-  initGame();
-  loop();
-}
+  let keys = {};
+  let player;
+  const gravity = 0.8;
+  const jumpStrength = -14;
+  const speed = 4;
+  let currentLevel = 1;
+  let cameraX = 0;
 
-function initGame() {
-  player = { x: 100, y: 300, width: 64, height: 64, dy: 0, vx: 0, onGround: false, jumpCount: 0, alive: true };
-  score = 0;
-  scoreDisplay.textContent = score;
-  loadLevel(currentLevel);
-}
+  let platforms, enemies, coins, flag, floor, blocks;
+  let score = 0;
+  const sprite = new Image();
+  sprite.src = "https://i.imgur.com/PGNQbPJ.png"; // substitui sprite_personagem.png por link público de um sprite ou deixar simples.
 
-function loadLevel(level) {
-  if (level === 1) {
-    floor = { x: 0, y: 350, width: 4000, height: 50 };
-    platforms = [
-      { x: 300, y: 300, width: 100, height: 10 }, { x: 600, y: 260, width: 100, height: 10 },
-      { x: 900, y: 220, width: 120, height: 10 }, { x: 1200, y: 280, width: 100, height: 10 },
-      { x: 1600, y: 250, width: 140, height: 10 }, { x: 2000, y: 200, width: 120, height: 10 },
-      { x: 2400, y: 270, width: 100, height: 10 }, { x: 2800, y: 230, width: 100, height: 10 }
-    ];
-    enemies = [
-      { x: 800, y: 310, width: 40, height: 40, vx: 1, dead: false },
-      { x: 1800, y: 310, width: 40, height: 40, vx: -1, dead: false },
-      { x: 2500, y: 310, width: 40, height: 40, vx: 1, dead: false }
-    ];
-    coins = [
-      { x: 320, y: 260, collected: false }, { x: 640, y: 220, collected: false },
-      { x: 920, y: 180, collected: false }, { x: 2000, y: 160, collected: false }
-    ];
-    blocks = [
-      { x: 500, y: 200, width: 40, height: 40, type: "surpresa", active: true },
-      { x: 550, y: 200, width: 40, height: 40, type: "quebravel", active: true }
-    ];
-    flag = { x: 3900, y: 270, width: 20, height: 80 };
-  } else {
-    floor = { x: 0, y: 350, width: 3000, height: 50 };
-    platforms = [
-      { x: 200, y: 290, width: 100, height: 10 }, { x: 600, y: 250, width: 120, height: 10 },
-      { x: 1000, y: 230, width: 100, height: 10 }, { x: 1400, y: 200, width: 150, height: 10 }
-    ];
-    enemies = [
-      { x: 500, y: 310, width: 40, height: 40, vx: 1, dead: false },
-      { x: 1200, y: 310, width: 40, height: 40, vx: -1, dead: false }
-    ];
-    coins = [
-      { x: 220, y: 250, collected: false }, { x: 640, y: 210, collected: false }
-    ];
-    blocks = [];
-    flag = { x: 2900, y: 270, width: 20, height: 80 };
-  }
-  player.x = 100;
-  player.y = 300;
-}
+  let loopId = null;
+  let gameStarted = false;
 
-document.addEventListener("keydown", e => {
-  keys[e.key] = true;
-  if (e.key === " " && player.jumpCount < 2 && player.alive) {
-    player.dy = jumpStrength;
-    player.jumpCount++;
-    jumpSound.play();
-  }
-});
-document.addEventListener("keyup", e => keys[e.key] = false);
-
-function update() {
-  if (!player.alive) {
-    gameContainer.style.display = "none";
-    gameOver.style.display = "block";
-    deathSound.play();
-    return;
+  function startGame() {
+    if (!sprite.complete) {
+      sprite.onload = () => {
+        actuallyStartGame();
+      }
+    } else {
+      actuallyStartGame();
+    }
   }
 
-  player.vx = 0;
-  if (keys["ArrowRight"]) player.vx = speed;
-  if (keys["ArrowLeft"]) player.vx = -speed;
-  player.x += player.vx;
-  player.dy += gravity;
-  player.y += player.dy;
-  player.onGround = false;
+  function actuallyStartGame() {
+    menu.classList.remove("active");
+    gameContainer.classList.add("active");
+    gameOver.classList.remove("active");
+    winScreen.classList.remove("active");
 
-  if (player.y + player.height >= floor.y) {
+    initGame();
+    if(!loopId) loopId = requestAnimationFrame(gameLoop);
+    gameStarted = true;
+    canvas.focus();
+  }
+
+  function initGame() {
+    player = { x: 100, y: 300, width: 64, height: 64, dy: 0, vx: 0, onGround: false, jumpCount: 0, alive: true };
+    score = 0;
+    scoreDisplay.textContent = score;
+    loadLevel(currentLevel);
+  }
+
+  function loadLevel(level) {
+    if(level === 1){
+      floor = { x: 0, y: 350, width: 4000, height: 50 };
+      platforms = [
+        { x: 300, y: 300, width: 100, height: 10 }, { x: 600, y: 260, width: 100, height: 10 },
+        { x: 900, y: 220, width: 120, height: 10 }, { x: 1200, y: 280, width: 100, height: 10 },
+        { x: 1600, y: 250, width: 140, height: 10 }, { x: 2000, y: 200, width: 120, height: 10 },
+        { x: 2400, y: 270, width: 100, height: 10 }, { x: 2800, y: 230, width: 100, height: 10 }
+      ];
+      enemies = [
+        { x: 800, y: 310, width: 40, height: 40, vx: 1, dead: false },
+        { x: 1800, y: 310, width: 40, height: 40, vx: -1, dead: false },
+        { x: 2500, y: 310, width: 40, height: 40, vx: 1, dead: false }
+      ];
+      coins = [
+        { x: 320, y: 260, collected: false }, { x: 640, y: 220, collected: false },
+        { x: 920, y: 180, collected: false }, { x: 2000, y: 160, collected: false }
+      ];
+      blocks = [
+        { x: 500, y: 200, width: 40, height: 40, type: "surpresa", active: true },
+        { x: 550, y: 200, width: 40, height: 40, type: "quebravel", active: true }
+      ];
+      flag = { x: 3900, y: 270, width: 20, height: 80 };
+    } else {
+      floor = { x: 0, y: 350, width: 3000, height: 50 };
+      platforms = [
+        { x: 200, y: 290, width: 100, height: 10 }, { x: 600, y: 250, width: 120, height: 10 },
+        { x: 1000, y: 230, width: 100, height: 10 }, { x: 1400, y: 200, width: 150, height: 10 }
+      ];
+      enemies = [
+        { x: 500, y: 310, width: 40, height: 40, vx: 1, dead: false },
+        { x: 1200, y: 310, width: 40, height: 40, vx: -1, dead: false }
+      ];
+      coins = [
+        { x: 220, y: 250, collected: false }, { x: 640, y: 210, collected: false }
+      ];
+      blocks = [];
+      flag = { x: 2900, y: 270, width: 20, height: 80 };
+    }
+    player.x = 100;
     player.y = floor.y - player.height;
     player.dy = 0;
-    player.onGround = true;
+    player.vx = 0;
+    player.onGround = false;
     player.jumpCount = 0;
+    player.alive = true;
   }
 
-  platforms.forEach(p => {
-    if (player.y + player.height <= p.y + 10 &&
-        player.y + player.height + player.dy >= p.y &&
-        player.x + player.width > p.x &&
-        player.x < p.x + p.width) {
-      player.y = p.y - player.height;
+  startBtn.addEventListener("click", startGame);
+  retryBtn.addEventListener("click", () => {
+    currentLevel = 1;
+    actuallyStartGame();
+  });
+  winRetryBtn.addEventListener("click", () => {
+    currentLevel = 1;
+    actuallyStartGame();
+  });
+
+  document.addEventListener("keydown", e => {
+    keys[e.key] = true;
+    if(e.key === " " || e.key === "ArrowUp" || e.key === "w") {
+      if(player.alive && player.jumpCount < 2) {
+        player.dy = jumpStrength;
+        player.jumpCount++;
+        jumpSound.currentTime = 0;
+        jumpSound.play();
+      }
+      e.preventDefault();
+    }
+  });
+  document.addEventListener("keyup", e => {
+    keys[e.key] = false;
+  });
+
+  function update() {
+    if(!player.alive){
+      if(gameContainer.classList.contains("active")){
+        gameContainer.classList.remove("active");
+      }
+      gameOver.classList.add("active");
+      deathSound.currentTime = 0;
+      deathSound.play();
+      return;
+    }
+
+    // Movimento horizontal
+    player.vx = 0;
+    if(keys["ArrowRight"] || keys["d"]) player.vx = speed;
+    if(keys["ArrowLeft"] || keys["a"]) player.vx = -speed;
+
+    player.x += player.vx;
+
+    // Limitar jogador para a esquerda da tela (não sair do mundo)
+    if(player.x < 0) player.x = 0;
+    // Limitar jogador para a direita do chão
+    if(player.x + player.width > floor.width) player.x = floor.width - player.width;
+
+    // Gravidade e salto
+    player.dy += gravity;
+    player.y += player.dy;
+
+    player.onGround = false;
+
+    // Colisão com chão
+    if(player.y + player.height >= floor.y){
+      player.y = floor.y - player.height;
       player.dy = 0;
       player.onGround = true;
       player.jumpCount = 0;
     }
-  });
 
-  coins.forEach(c => {
-    if (!c.collected && player.x < c.x + 20 && player.x + player.width > c.x &&
-        player.y < c.y + 20 && player.y + player.height > c.y) {
-      c.collected = true;
-      score += 100;
-      coinSound.play();
-      scoreDisplay.textContent = score;
-    }
-  });
+    // Colisões com plataformas
+    platforms.forEach(p => {
+      if(player.y + player.height <= p.y + 10 &&
+         player.y + player.height + player.dy >= p.y &&
+         player.x + player.width > p.x &&
+         player.x < p.x + p.width) {
+        player.y = p.y - player.height;
+        player.dy = 0;
+        player.onGround = true;
+        player.jumpCount = 0;
+      }
+    });
 
-  blocks.forEach(b => {
-    if (!b.active) return;
-    const hitBottom = player.y <= b.y + b.height &&
-                      player.y + player.height > b.y + b.height &&
-                      player.x + player.width > b.x &&
-                      player.x < b.x + b.width &&
-                      player.dy < 0;
-    if (hitBottom) {
-      if (b.type === "surpresa") {
-        coinSound.play();
-        b.active = false;
+    // Coleta moedas
+    coins.forEach(c => {
+      if(!c.collected &&
+         player.x < c.x + 20 &&
+         player.x + player.width > c.x &&
+         player.y < c.y + 20 &&
+         player.y + player.height > c.y){
+        c.collected = true;
         score += 100;
         scoreDisplay.textContent = score;
-      } else if (b.type === "quebravel") {
-        blockSound.play();
-        b.active = false;
+        coinSound.currentTime = 0;
+        coinSound.play();
       }
-      player.dy = 1;
-    }
-  });
+    });
 
-  enemies.forEach(e => {
-    if (e.dead) return;
-    e.x += e.vx;
-    if (e.x <= 0 || e.x >= floor.width - e.width) e.vx *= -1;
+    // Blocos surpresa e quebráveis
+    blocks.forEach(b => {
+      if(!b.active) return;
+      const hitBottom = player.y <= b.y + b.height &&
+                        player.y + player.height > b.y + b.height &&
+                        player.x + player.width > b.x &&
+                        player.x < b.x + b.width &&
+                        player.dy < 0;
+      if(hitBottom){
+        if(b.type === "surpresa"){
+          coinSound.currentTime = 0;
+          coinSound.play();
+          b.active = false;
+          score += 100;
+          scoreDisplay.textContent = score;
+        } else if(b.type === "quebravel"){
+          blockSound.currentTime = 0;
+          blockSound.play();
+          b.active = false;
+        }
+        player.dy = 1;
+      }
+    });
 
-    const hit = player.x < e.x + e.width &&
-                player.x + player.width > e.x &&
-                player.y < e.y + e.height &&
-                player.y + player.height > e.y;
+    // Movimento inimigos
+    enemies.forEach(e => {
+      if(e.dead) return;
+      e.x += e.vx;
+      if(e.x <= 0) e.vx = Math.abs(e.vx);
+      if(e.x + e.width >= floor.width) e.vx = -Math.abs(e.vx);
 
-    if (hit) {
-      if (player.dy > 0 && player.y + player.height - e.y < 20) {
-        e.dead = true;
-        player.dy = jumpStrength / 1.5;
+      // Colisão jogador x inimigo
+      const hit = player.x < e.x + e.width &&
+                  player.x + player.width > e.x &&
+                  player.y < e.y + e.height &&
+                  player.y + player.height > e.y;
+      if(hit){
+        if(player.dy > 0 && (player.y + player.height - e.y) < 20){
+          e.dead = true;
+          player.dy = jumpStrength / 1.5;
+        } else {
+          player.alive = false;
+        }
+      }
+    });
+
+    // Verifica vitória
+    if(player.x < flag.x + flag.width &&
+       player.x + player.width > flag.x &&
+       player.y < flag.y + flag.height &&
+       player.y + player.height > flag.y) {
+      if(currentLevel === 1){
+        currentLevel = 2;
+        loadLevel(currentLevel);
       } else {
-        player.alive = false;
+        gameContainer.classList.remove("active");
+        winScreen.classList.add("active");
+        finalScoreDisplay.textContent = score;
+        winSound.currentTime = 0;
+        winSound.play();
       }
     }
-  });
 
-  if (player.x < flag.x + flag.width &&
-      player.x + player.width > flag.x &&
-      player.y < flag.y + flag.height &&
-      player.y + player.height > flag.y) {
-    if (currentLevel === 1) {
-      currentLevel = 2;
-      loadLevel(currentLevel);
-    } else {
-      gameContainer.style.display = "none";
-      winScreen.style.display = "block";
-      finalScoreDisplay.textContent = score;
-      winSound.play();
-    }
+    // Atualiza câmera centrada no jogador
+    cameraX = player.x - canvas.width / 2;
+    // Limita câmera para não mostrar antes do início do chão
+    if(cameraX < 0) cameraX = 0;
+    // Limita câmera para não ir além do final do chão
+    if(cameraX + canvas.width > floor.width) cameraX = floor.width - canvas.width;
   }
 
-  cameraX = player.x - canvas.width / 2;
-}
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.translate(-cameraX, 0);
 
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.save();
-  ctx.translate(-cameraX, 0);
-  ctx.fillStyle = "green";
-  ctx.fillRect(floor.x, floor.y, floor.width, floor.height);
+    // Desenha o fundo do chão
+    const grd = ctx.createLinearGradient(0, floor.y, 0, floor.y + floor.height);
+    grd.addColorStop(0, "#228B22");
+    grd.addColorStop(1, "#006400");
+    ctx.fillStyle = grd;
+    ctx.fillRect(floor.x, floor.y, floor.width, floor.height);
 
-  platforms.forEach(p => {
-    ctx.fillStyle = "gray";
-    ctx.fillRect(p.x, p.y, p.width, p.height);
-  });
+    // Desenha plataformas
+    platforms.forEach(p => {
+      ctx.fillStyle = "#444";
+      ctx.fillRect(p.x, p.y, p.width, p.height);
+    });
 
-  blocks.forEach(b => {
-    if (!b.active) return;
-    ctx.fillStyle = b.type === "surpresa" ? "orange" : "brown";
-    ctx.fillRect(b.x, b.y, b.width, b.height);
-  });
+    // Desenha blocos
+    blocks.forEach(b => {
+      if(!b.active) return;
+      ctx.fillStyle = b.type === "surpresa" ? "#FF8C00" : "#8B4513";
+      ctx.fillRect(b.x, b.y, b.width, b.height);
+    });
 
-  coins.forEach(c => {
-    if (!c.collected) {
-      ctx.fillStyle = "gold";
-      ctx.beginPath();
-      ctx.arc(c.x + 10, c.y + 10, 10, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  });
+    // Desenha moedas
+    coins.forEach(c => {
+      if(!c.collected){
+        ctx.fillStyle = "gold";
+        ctx.beginPath();
+        ctx.arc(c.x + 10, c.y + 10, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "darkgoldenrod";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    });
 
-  ctx.drawImage(img, player.x, player.y, player.width, player.height);
+    // Desenha inimigos
+    enemies.forEach(e => {
+      if(!e.dead){
+        ctx.fillStyle = "purple";
+        ctx.fillRect(e.x, e.y, e.width, e.height);
+        // olho simples para dar vida
+        ctx.fillStyle = "white";
+        ctx.beginPath();
+        ctx.arc(e.x + 10, e.y + 15, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "black";
+        ctx.beginPath();
+        ctx.arc(e.x + 10, e.y + 15, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
 
-  enemies.forEach(e => {
-    if (!e.dead) {
-      ctx.fillStyle = "purple";
-      ctx.fillRect(e.x, e.y, e.width, e.height);
-    }
-  });
+    // Desenha bandeira
+    ctx.fillStyle = "white";
+    ctx.fillRect(flag.x, flag.y, flag.width, flag.height);
+    ctx.fillStyle = "red";
+    ctx.beginPath();
+    ctx.moveTo(flag.x + flag.width, flag.y);
+    ctx.lineTo(flag.x + flag.width + 20, flag.y + 10);
+    ctx.lineTo(flag.x + flag.width, flag.y + 20);
+    ctx.fill();
 
-  ctx.fillStyle = "white";
-  ctx.fillRect(flag.x, flag.y, flag.width, flag.height);
-  ctx.fillStyle = "red";
-  ctx.beginPath();
-  ctx.moveTo(flag.x + flag.width, flag.y);
-  ctx.lineTo(flag.x + flag.width + 20, flag.y + 10);
-  ctx.lineTo(flag.x + flag.width, flag.y + 20);
-  ctx.fill();
-  ctx.restore();
-}
+    // Desenha o jogador (sprite)
+    ctx.drawImage(sprite, player.x, player.y, player.width, player.height);
 
-function loop() {
-  update();
-  draw();
-  requestAnimationFrame(loop);
-}
+    ctx.restore();
+  }
 
+  function gameLoop() {
+    update();
+    draw();
+    loopId = requestAnimationFrame(gameLoop);
+  }
+})();
 </script>
 </body>
 </html>
+
