@@ -13,6 +13,10 @@
       --btn-radius: 12px;
       --btn-padding: 12px 24px;
       --hud-font-size: 18px;
+      --control-btn-bg: rgba(0, 102, 255, 0.8);
+      --control-btn-active-bg: rgba(0, 102, 255, 1);
+      --powerup-color: #ffcc00;
+      --powerup-shadow: #ffaa00;
     }
     html, body {
       margin: 0;
@@ -27,12 +31,14 @@
       justify-content: center;
       overflow: hidden;
       user-select: none;
+      touch-action: none;
     }
     #menu, #gameContainer, #gameOver, #winScreen {
       text-align: center;
       display: none;
       width: 90vw;
       max-width: 900px;
+      position: relative;
     }
     #menu.active, #gameContainer.active, #gameOver.active, #winScreen.active {
       display: block;
@@ -67,6 +73,7 @@
       max-width: 100%;
       height: 400px;
       box-shadow: 0 0 20px rgba(0,0,0,0.7);
+      touch-action: none;
     }
     .hud {
       font-size: var(--hud-font-size);
@@ -75,8 +82,54 @@
       text-shadow: 0 0 5px #aaa;
       font-weight: 700;
       user-select: none;
+      display: flex;
+      justify-content: center;
+      gap: 20px;
     }
-    /* Responsive */
+    #powerupIndicator {
+      font-weight: 700;
+      color: var(--powerup-color);
+      text-shadow: 0 0 10px var(--powerup-shadow);
+      user-select: none;
+    }
+    /* Controles na tela para toque */
+    #touchControls {
+      position: fixed;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 900px;
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      pointer-events: auto;
+      user-select: none;
+      z-index: 10;
+    }
+    .control-button {
+      flex: 1;
+      max-width: 120px;
+      aspect-ratio: 1 / 1;
+      background: var(--control-btn-bg);
+      border-radius: 50%;
+      box-shadow: 0 0 10px rgba(0,102,255,0.7);
+      color: white;
+      font-size: 1.8rem;
+      font-weight: 900;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: background-color 0.15s ease;
+      touch-action: manipulation;
+    }
+    .control-button:active, .control-button.active {
+      background: var(--control-btn-active-bg);
+      box-shadow: 0 0 18px rgba(0,102,255,1);
+    }
     @media (max-width: 600px) {
       canvas {
         height: 300px;
@@ -90,6 +143,13 @@
       .hud {
         font-size: 16px;
       }
+      #touchControls {
+        gap: 8px;
+      }
+      .control-button {
+        max-width: 90px;
+        font-size: 1.3rem;
+      }
     }
   </style>
 </head>
@@ -97,12 +157,16 @@
 
 <div id="menu" class="active">
   <h1>Super Hara World</h1>
-  <button class="btn" id="startBtn">JOGAR</button>
+  <button class="btn" id="startBtn" aria-label="Iniciar jogo">JOGAR</button>
 </div>
 
-<div id="gameContainer">
+<div id="gameContainer" >
   <canvas id="game" width="800" height="400" tabindex="0" aria-label="Área do jogo"></canvas>
-  <div class="hud">Pontuação: <span id="score">0</span></div>
+  <div class="hud" aria-live="polite">
+    Pontuação: <span id="score">0</span> &nbsp;|&nbsp; 
+    Fase: <span id="levelDisplay">1</span>
+    <span id="powerupIndicator" aria-live="polite" role="alert"></span>
+  </div>
 </div>
 
 <div id="gameOver">
@@ -111,12 +175,19 @@
 </div>
 
 <div id="winScreen">
-  <h1>Parabéns! Você venceu!</h1>
+  <h1>Parabéns! Você venceu todas as fases!</h1>
   <p>Pontuação final: <span id="finalScore"></span></p>
   <button class="btn" id="winRetryBtn">Jogar Novamente</button>
 </div>
 
-<!-- Sons usando arquivos públicos CDN para testes ou deixar sem som para evitar erros -->
+<!-- Controles de toque -->
+<div id="touchControls" aria-label="Controles de movimento e pulo para toque">
+  <button aria-label="Mover para esquerda" id="btnLeft" class="control-button">&#8592;</button>
+  <button aria-label="Pular" id="btnJump" class="control-button">&#9650;</button>
+  <button aria-label="Mover para direita" id="btnRight" class="control-button">&#8594;</button>
+</div>
+
+<!-- Sons de efeitos via URLs confiáveis -->
 <audio id="jumpSound" src="https://actions.google.com/sounds/v1/cartoon/slide_whistle_to_drum_hit.ogg"></audio>
 <audio id="coinSound" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
 <audio id="deathSound" src="https://actions.google.com/sounds/v1/cartoon/metal_twang.ogg"></audio>
@@ -134,6 +205,8 @@
   const winScreen = document.getElementById("winScreen");
   const scoreDisplay = document.getElementById("score");
   const finalScoreDisplay = document.getElementById("finalScore");
+  const levelDisplay = document.getElementById("levelDisplay");
+  const powerupIndicator = document.getElementById("powerupIndicator");
 
   const jumpSound = document.getElementById("jumpSound");
   const coinSound = document.getElementById("coinSound");
@@ -145,30 +218,117 @@
   const retryBtn = document.getElementById("retryBtn");
   const winRetryBtn = document.getElementById("winRetryBtn");
 
+  // Controles de toque
+  const btnLeft = document.getElementById("btnLeft");
+  const btnRight = document.getElementById("btnRight");
+  const btnJump = document.getElementById("btnJump");
+
   let keys = {};
   let player;
   const gravity = 0.8;
-  const jumpStrength = -14;
+  const baseJumpStrength = -14;
   const speed = 4;
   let currentLevel = 1;
   let cameraX = 0;
 
   let platforms, enemies, coins, flag, floor, blocks;
   let score = 0;
-  const sprite = new Image();
-  sprite.src = "https://i.imgur.com/PGNQbPJ.png"; // substitui sprite_personagem.png por link público de um sprite ou deixar simples.
 
   let loopId = null;
   let gameStarted = false;
 
-  function startGame() {
-    if (!sprite.complete) {
-      sprite.onload = () => {
-        actuallyStartGame();
-      }
-    } else {
-      actuallyStartGame();
+  // Controlo especial para pulo por botao toque 
+  let jumpTouchCount = 0;
+  let jumpTouchLastTime = 0;
+  const jumpTouchDelay = 400; // ms para resetar contador pulo
+
+  // Nova variável para controlar o voo da asa
+  let hasWing = false;
+  let wingFlyTime = 0;      // tempo restante de voo (ms)
+  const wingFlyDuration = 4000;  // tempo total voo (4 segundos)
+
+  // Função para gerar inimigos dinamicamente conforme nível (até 5 fases)
+  function generateEnemies(level) {
+    const baseEnemies = [
+      { x: 500, y: 310, width: 40, height: 40, vx: 1, dead: false },
+      { x: 1200, y: 310, width: 40, height: 40, vx: -1, dead: false },
+      { x: 1800, y: 310, width: 40, height: 40, vx: 1, dead: false },
+      { x: 2400, y: 310, width: 40, height: 40, vx: -1, dead: false },
+      { x: 2800, y: 310, width: 40, height: 40, vx: 1, dead: false },
+      { x: 3200, y: 310, width: 40, height: 40, vx: -1, dead: false },  
+    ];
+    let count = Math.min(level + 1, baseEnemies.length);
+    let speedMultiplier = 1 + (level -1)*0.3; // aumenta 30% por nível
+    return baseEnemies.slice(0, count).map(enemy => ({
+      ...enemy,
+      vx: (enemy.vx > 0 ? 1 : -1) * speedMultiplier,
+      dead: false
+    }));
+  }
+
+  // Carrega blocos para os níveis (adiciona bloco de asa na fase 2)
+  function generateBlocksForLevel(level) {
+    const baseBlocks = [
+      { x: 500, y: 200, width: 40, height: 40, type: "surpresa", active: true },
+      { x: 550, y: 200, width: 40, height: 40, type: "quebravel", active: true }
+    ];
+    if(level === 2){
+      baseBlocks.push({
+        x: 1000, y: 180, width: 40, height: 40, type: "wing", active: true
+      });
     }
+    return baseBlocks;
+  }
+
+  function loadLevel(level) {
+    floor = { x: 0, y: 350, width: 4000, height: 50 };
+    platforms = [
+      { x: 300, y: 300, width: 100, height: 10 },
+      { x: 600, y: 260, width: 100, height: 10 },
+      { x: 900, y: 220, width: 120, height: 10 },
+      { x: 1200, y: 280, width: 100, height: 10 },
+      { x: 1600, y: 250, width: 140, height: 10 },
+      { x: 2000, y: 200, width: 120, height: 10 },
+      { x: 2400, y: 270, width: 100, height: 10 },
+      { x: 2800, y: 230, width: 100, height: 10 },
+      { x: 3200, y: 250, width: 110, height: 10 }
+    ];
+    coins = [
+      { x: 320, y: 260, collected: false },
+      { x: 640, y: 220, collected: false },
+      { x: 920, y: 180, collected: false },
+      { x: 2000, y: 160, collected: false },
+      { x: 3100, y: 210, collected: false }
+    ];
+    blocks = generateBlocksForLevel(level);
+    flag = { x: 3900, y: 270, width: 20, height: 80 };
+
+    enemies = generateEnemies(level);
+
+    player.x = 100;
+    player.y = floor.y - player.height;
+    player.dy = 0;
+    player.vx = 0;
+    player.onGround = false;
+    player.jumpCount = 0;
+    player.alive = true;
+    hasWing = false;
+    wingFlyTime = 0;
+
+    levelDisplay.textContent = level;
+    updatePowerupHUD();
+  }
+
+  function updatePowerupHUD() {
+    if(hasWing){
+      powerupIndicator.textContent = `Asa ativa! Tempo restante: ${Math.ceil(wingFlyTime/1000)}s`;
+    } else {
+      powerupIndicator.textContent = "";
+    }
+  }
+
+  function startGame() {
+    actuallyStartGame();
   }
 
   function actuallyStartGame() {
@@ -184,58 +344,12 @@
   }
 
   function initGame() {
-    player = { x: 100, y: 300, width: 64, height: 64, dy: 0, vx: 0, onGround: false, jumpCount: 0, alive: true };
+    player = { x: 100, y: 300, width: 48, height: 64, dy: 0, vx: 0, onGround: false, jumpCount: 0, alive: true };
     score = 0;
     scoreDisplay.textContent = score;
     loadLevel(currentLevel);
-  }
-
-  function loadLevel(level) {
-    if(level === 1){
-      floor = { x: 0, y: 350, width: 4000, height: 50 };
-      platforms = [
-        { x: 300, y: 300, width: 100, height: 10 }, { x: 600, y: 260, width: 100, height: 10 },
-        { x: 900, y: 220, width: 120, height: 10 }, { x: 1200, y: 280, width: 100, height: 10 },
-        { x: 1600, y: 250, width: 140, height: 10 }, { x: 2000, y: 200, width: 120, height: 10 },
-        { x: 2400, y: 270, width: 100, height: 10 }, { x: 2800, y: 230, width: 100, height: 10 }
-      ];
-      enemies = [
-        { x: 800, y: 310, width: 40, height: 40, vx: 1, dead: false },
-        { x: 1800, y: 310, width: 40, height: 40, vx: -1, dead: false },
-        { x: 2500, y: 310, width: 40, height: 40, vx: 1, dead: false }
-      ];
-      coins = [
-        { x: 320, y: 260, collected: false }, { x: 640, y: 220, collected: false },
-        { x: 920, y: 180, collected: false }, { x: 2000, y: 160, collected: false }
-      ];
-      blocks = [
-        { x: 500, y: 200, width: 40, height: 40, type: "surpresa", active: true },
-        { x: 550, y: 200, width: 40, height: 40, type: "quebravel", active: true }
-      ];
-      flag = { x: 3900, y: 270, width: 20, height: 80 };
-    } else {
-      floor = { x: 0, y: 350, width: 3000, height: 50 };
-      platforms = [
-        { x: 200, y: 290, width: 100, height: 10 }, { x: 600, y: 250, width: 120, height: 10 },
-        { x: 1000, y: 230, width: 100, height: 10 }, { x: 1400, y: 200, width: 150, height: 10 }
-      ];
-      enemies = [
-        { x: 500, y: 310, width: 40, height: 40, vx: 1, dead: false },
-        { x: 1200, y: 310, width: 40, height: 40, vx: -1, dead: false }
-      ];
-      coins = [
-        { x: 220, y: 250, collected: false }, { x: 640, y: 210, collected: false }
-      ];
-      blocks = [];
-      flag = { x: 2900, y: 270, width: 20, height: 80 };
-    }
-    player.x = 100;
-    player.y = floor.y - player.height;
-    player.dy = 0;
-    player.vx = 0;
-    player.onGround = false;
-    player.jumpCount = 0;
-    player.alive = true;
+    keys = {};
+    jumpTouchCount = 0;
   }
 
   startBtn.addEventListener("click", startGame);
@@ -248,11 +362,12 @@
     actuallyStartGame();
   });
 
+  // Controles teclado (PC)
   document.addEventListener("keydown", e => {
-    keys[e.key] = true;
-    if(e.key === " " || e.key === "ArrowUp" || e.key === "w") {
-      if(player.alive && player.jumpCount < 2) {
-        player.dy = jumpStrength;
+    keys[e.key.toLowerCase()] = true;
+    if ((e.key === " " || e.key === "ArrowUp" || e.key.toLowerCase() === "w") && player.alive) {
+      if(player.jumpCount < 3){
+        player.dy = baseJumpStrength;
         player.jumpCount++;
         jumpSound.currentTime = 0;
         jumpSound.play();
@@ -261,7 +376,69 @@
     }
   });
   document.addEventListener("keyup", e => {
-    keys[e.key] = false;
+    keys[e.key.toLowerCase()] = false;
+  });
+
+  // Controles toque: mover esquerda
+  btnLeft.addEventListener("touchstart", e => {
+    keys["arrowleft"] = true;
+    btnLeft.classList.add("active");
+    e.preventDefault();
+  });
+  btnLeft.addEventListener("touchend", e => {
+    keys["arrowleft"] = false;
+    btnLeft.classList.remove("active");
+    e.preventDefault();
+  });
+  btnLeft.addEventListener("touchcancel", e => {
+    keys["arrowleft"] = false;
+    btnLeft.classList.remove("active");
+    e.preventDefault();
+  });
+
+  // Controles toque: mover direita
+  btnRight.addEventListener("touchstart", e => {
+    keys["arrowright"] = true;
+    btnRight.classList.add("active");
+    e.preventDefault();
+  });
+  btnRight.addEventListener("touchend", e => {
+    keys["arrowright"] = false;
+    btnRight.classList.remove("active");
+    e.preventDefault();
+  });
+  btnRight.addEventListener("touchcancel", e => {
+    keys["arrowright"] = false;
+    btnRight.classList.remove("active");
+    e.preventDefault();
+  });
+
+  // Controles toque: pular com detecção de múltiplos toques para pulo até triplo
+  btnJump.addEventListener("touchstart", e => {
+    const now = Date.now();
+    if (now - jumpTouchLastTime > jumpTouchDelay) {
+      jumpTouchCount = 0;
+    }
+    jumpTouchCount++;
+    jumpTouchLastTime = now;
+
+    if(player.alive && jumpTouchCount <= 3 && player.jumpCount < 3){
+      player.dy = baseJumpStrength;
+      player.jumpCount++;
+      jumpSound.currentTime = 0;
+      jumpSound.play();
+    }
+
+    btnJump.classList.add("active");
+    e.preventDefault();
+  });
+  btnJump.addEventListener("touchend", e => {
+    btnJump.classList.remove("active");
+    e.preventDefault();
+  });
+  btnJump.addEventListener("touchcancel", e => {
+    btnJump.classList.remove("active");
+    e.preventDefault();
   });
 
   function update() {
@@ -277,8 +454,8 @@
 
     // Movimento horizontal
     player.vx = 0;
-    if(keys["ArrowRight"] || keys["d"]) player.vx = speed;
-    if(keys["ArrowLeft"] || keys["a"]) player.vx = -speed;
+    if(keys["arrowright"] || keys["d"]) player.vx = speed;
+    if(keys["arrowleft"] || keys["a"]) player.vx = -speed;
 
     player.x += player.vx;
 
@@ -287,8 +464,21 @@
     // Limitar jogador para a direita do chão
     if(player.x + player.width > floor.width) player.x = floor.width - player.width;
 
-    // Gravidade e salto
-    player.dy += gravity;
+    // Gravidade e salto com asa
+    if(hasWing && wingFlyTime > 0 && keys["arrowup"]) {
+      // Voar (reduce a gravidade e permite subir)
+      player.dy += gravity * 0.15; // bem mais lento caindo
+      player.dy -= 0.8;             // subida acelerada
+      wingFlyTime -= 16;           // decrementa tempo (aprox 60fps)
+      updatePowerupHUD();
+      if(wingFlyTime <= 0){
+        hasWing = false;
+        updatePowerupHUD();
+      }
+    } else {
+      player.dy += gravity;
+    }
+
     player.y += player.dy;
 
     player.onGround = false;
@@ -299,9 +489,12 @@
       player.dy = 0;
       player.onGround = true;
       player.jumpCount = 0;
+      jumpTouchCount = 0; // reset contador de pulos ao tocar no chão
+      // Se cair no chão reinicia wingFlyTime se tiver asa
+      if(hasWing) wingFlyTime = wingFlyDuration;
     }
 
-    // Colisões com plataformas
+    // Colisões com plataformas e blocos
     platforms.forEach(p => {
       if(player.y + player.height <= p.y + 10 &&
          player.y + player.height + player.dy >= p.y &&
@@ -311,25 +504,12 @@
         player.dy = 0;
         player.onGround = true;
         player.jumpCount = 0;
+        jumpTouchCount = 0;
+        if(hasWing) wingFlyTime = wingFlyDuration;
       }
     });
 
-    // Coleta moedas
-    coins.forEach(c => {
-      if(!c.collected &&
-         player.x < c.x + 20 &&
-         player.x + player.width > c.x &&
-         player.y < c.y + 20 &&
-         player.y + player.height > c.y){
-        c.collected = true;
-        score += 100;
-        scoreDisplay.textContent = score;
-        coinSound.currentTime = 0;
-        coinSound.play();
-      }
-    });
-
-    // Blocos surpresa e quebráveis
+    // Colisão com blocos para ativar recompensas e asa
     blocks.forEach(b => {
       if(!b.active) return;
       const hitBottom = player.y <= b.y + b.height &&
@@ -348,8 +528,30 @@
           blockSound.currentTime = 0;
           blockSound.play();
           b.active = false;
+        } else if(b.type === "wing"){
+          coinSound.currentTime = 0;
+          coinSound.play();
+          b.active = false;
+          hasWing = true;
+          wingFlyTime = wingFlyDuration;
+          updatePowerupHUD();
         }
         player.dy = 1;
+      }
+    });
+
+    // Coleta moedas
+    coins.forEach(c => {
+      if(!c.collected &&
+         player.x < c.x + 20 &&
+         player.x + player.width > c.x &&
+         player.y < c.y + 20 &&
+         player.y + player.height > c.y){
+        c.collected = true;
+        score += 100;
+        scoreDisplay.textContent = score;
+        coinSound.currentTime = 0;
+        coinSound.play();
       }
     });
 
@@ -368,25 +570,28 @@
       if(hit){
         if(player.dy > 0 && (player.y + player.height - e.y) < 20){
           e.dead = true;
-          player.dy = jumpStrength / 1.5;
+          player.dy = baseJumpStrength / 1.5;
         } else {
           player.alive = false;
         }
       }
     });
 
-    // Verifica vitória
+    // Verifica vitória do nível
     if(player.x < flag.x + flag.width &&
        player.x + player.width > flag.x &&
        player.y < flag.y + flag.height &&
        player.y + player.height > flag.y) {
-      if(currentLevel === 1){
-        currentLevel = 2;
+
+      if(currentLevel < 5){
+        currentLevel++;
         loadLevel(currentLevel);
       } else {
+        // Vitória final
         gameContainer.classList.remove("active");
         winScreen.classList.add("active");
         finalScoreDisplay.textContent = score;
+        powerupIndicator.textContent = "";
         winSound.currentTime = 0;
         winSound.play();
       }
@@ -394,10 +599,98 @@
 
     // Atualiza câmera centrada no jogador
     cameraX = player.x - canvas.width / 2;
-    // Limita câmera para não mostrar antes do início do chão
     if(cameraX < 0) cameraX = 0;
-    // Limita câmera para não ir além do final do chão
     if(cameraX + canvas.width > floor.width) cameraX = floor.width - canvas.width;
+  }
+
+  // Desenha asas nas costas do jogador, se powerup ativado
+  function drawWings(x, y, width, height) {
+    ctx.save();
+    ctx.translate(x + width*0.1, y + height*0.4);
+    ctx.fillStyle = 'rgba(255, 223, 0, 0.85)';
+    ctx.shadowColor = 'rgba(255, 215, 0, 0.8)';
+    ctx.shadowBlur = 8;
+
+    // Asa esquerda
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(-15, -30, -40, -20, -30, 20);
+    ctx.bezierCurveTo(-20, 40, 5, 40, 0, 0);
+    ctx.fill();
+
+    // Asa direita
+    ctx.beginPath();
+    ctx.moveTo(width*0.8, 0);
+    ctx.bezierCurveTo(width*0.8+15, -30, width*0.8+40, -20, width*0.8+30, 20);
+    ctx.bezierCurveTo(width*0.8+20, 40, width*0.8-5, 40, width*0.8, 0);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  // Desenho simplificado do jogador “careca, pele clara, olhos orientais, roupa azul”
+  function drawPlayer(x, y, width, height) {
+    // Corpo azul (roupa)
+    ctx.fillStyle = "#0033cc";
+    ctx.fillRect(x + width*0.2, y + height*0.5, width*0.6, height*0.45);
+
+    // Cabeça (pele clara)
+    ctx.fillStyle = "#f9d4b7"; // tom pele clara
+    ctx.beginPath();
+    ctx.ellipse(x + width/2, y + height*0.3, width*0.32, height*0.32, 0, 0, 2 * Math.PI);
+    ctx.fill();
+
+    // Olhos orientais (pálpebras e íris)
+    ctx.strokeStyle = "#2a2a2a";
+    ctx.lineWidth = 2;
+    // olho esquerdo
+    ctx.beginPath();
+    ctx.moveTo(x + width*0.3, y + height*0.25);
+    ctx.quadraticCurveTo(x + width*0.38, y + height*0.18, x + width*0.46, y + height*0.25);
+    ctx.stroke();
+    // olho direito
+    ctx.beginPath();
+    ctx.moveTo(x + width*0.54, y + height*0.25);
+    ctx.quadraticCurveTo(x + width*0.62, y + height*0.18, x + width*0.7, y + height*0.25);
+    ctx.stroke();
+
+    // íris pequena preta
+    ctx.fillStyle = "#1a1a1a";
+    ctx.beginPath();
+    ctx.ellipse(x + width*0.38, y + height*0.27, width*0.05, height*0.04, 0, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(x + width*0.62, y + height*0.27, width*0.05, height*0.04, 0, 0, 2 * Math.PI);
+    ctx.fill();
+
+    // Nariz (linha simples)
+    ctx.strokeStyle = "#b68d58";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x + width/2, y + height*0.3);
+    ctx.lineTo(x + width/2, y + height*0.38);
+    ctx.stroke();
+
+    // Boca simples (curva neutra)
+    ctx.strokeStyle = "#b55454";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.quadraticCurveTo(x + width*0.45, y + height*0.43, x + width*0.55, y + height*0.43);
+    ctx.stroke();
+
+    // Careca - topo da cabeça com sombra suave (gradiente)
+    let grad = ctx.createRadialGradient(x + width/2, y + height*0.3, width*0.1, x + width/2, y + height*0.3, width*0.3);
+    grad.addColorStop(0, "rgba(249, 212, 183, 1)");
+    grad.addColorStop(1, "rgba(215, 182, 145, 0.6)");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.ellipse(x + width/2, y + height*0.3, width*0.32, height*0.32, 0, 0, Math.PI, false);
+    ctx.fill();
+
+    // Desenha asas se powerup ativo
+    if(hasWing){
+      drawWings(x,y,width,height);
+    }
   }
 
   function draw() {
@@ -421,8 +714,25 @@
     // Desenha blocos
     blocks.forEach(b => {
       if(!b.active) return;
-      ctx.fillStyle = b.type === "surpresa" ? "#FF8C00" : "#8B4513";
+      let color;
+      if(b.type === "surpresa") color = "#FF8C00";
+      else if(b.type === "quebravel") color = "#8B4513";
+      else if(b.type === "wing") color = "#FFD700";  // Cor dourada para bloco asa
+      else color = "#666";
+      ctx.fillStyle = color;
       ctx.fillRect(b.x, b.y, b.width, b.height);
+      // Desenho simples para bloco asa (um pequeno símbolo de asa)
+      if(b.type === "wing"){
+        ctx.strokeStyle = "#AA8800";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        let cx = b.x + b.width/2;
+        let cy = b.y + b.height/2;
+        ctx.moveTo(cx-10, cy+5);
+        ctx.lineTo(cx, cy-10);
+        ctx.lineTo(cx+10, cy+5);
+        ctx.stroke();
+      }
     });
 
     // Desenha moedas
@@ -465,8 +775,8 @@
     ctx.lineTo(flag.x + flag.width, flag.y + 20);
     ctx.fill();
 
-    // Desenha o jogador (sprite)
-    ctx.drawImage(sprite, player.x, player.y, player.width, player.height);
+    // Desenha o jogador personalizado
+    drawPlayer(player.x, player.y, player.width, player.height);
 
     ctx.restore();
   }
