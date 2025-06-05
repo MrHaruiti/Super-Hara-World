@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -92,7 +92,7 @@
       text-shadow: 0 0 10px var(--powerup-shadow);
       user-select: none;
     }
-    /* Controles na tela para toque */
+    /* Touch controls */
     #touchControls {
       position: fixed;
       bottom: 10px;
@@ -157,37 +157,35 @@
 
 <div id="menu" class="active">
   <h1>Super Hara World</h1>
-  <button class="btn" id="startBtn" aria-label="Iniciar jogo">JOGAR</button>
+  <button class="btn" id="startBtn" aria-label="Start Game">PLAY</button>
 </div>
 
 <div id="gameContainer" >
-  <canvas id="game" width="800" height="400" tabindex="0" aria-label="Área do jogo"></canvas>
+  <canvas id="game" width="800" height="400" tabindex="0" aria-label="Game Area"></canvas>
   <div class="hud" aria-live="polite">
-    Pontuação: <span id="score">0</span> &nbsp;|&nbsp; 
-    Fase: <span id="levelDisplay">1</span>
+    Score: <span id="score">0</span> &nbsp;|&nbsp; 
+    Level: <span id="levelDisplay">1</span>
     <span id="powerupIndicator" aria-live="polite" role="alert"></span>
   </div>
 </div>
 
 <div id="gameOver">
   <h1>GAME OVER</h1>
-  <button class="btn" id="retryBtn">Tentar Novamente</button>
+  <button class="btn" id="retryBtn">Try Again</button>
 </div>
 
 <div id="winScreen">
-  <h1>Parabéns! Você venceu todas as fases!</h1>
-  <p>Pontuação final: <span id="finalScore"></span></p>
-  <button class="btn" id="winRetryBtn">Jogar Novamente</button>
+  <h1>Congratulations! You won all levels!</h1>
+  <p>Final Score: <span id="finalScore"></span></p>
+  <button class="btn" id="winRetryBtn">Play Again</button>
 </div>
 
-<!-- Controles de toque -->
-<div id="touchControls" aria-label="Controles de movimento e pulo para toque">
-  <button aria-label="Mover para esquerda" id="btnLeft" class="control-button">&#8592;</button>
-  <button aria-label="Pular" id="btnJump" class="control-button">&#9650;</button>
-  <button aria-label="Mover para direita" id="btnRight" class="control-button">&#8594;</button>
+<div id="touchControls" aria-label="Touch Controls for movement and jump">
+  <button aria-label="Move Left" id="btnLeft" class="control-button">&#8592;</button>
+  <button aria-label="Jump" id="btnJump" class="control-button">&#9650;</button>
+  <button aria-label="Move Right" id="btnRight" class="control-button">&#8594;</button>
 </div>
 
-<!-- Sons de efeitos via URLs confiáveis -->
 <audio id="jumpSound" src="https://actions.google.com/sounds/v1/cartoon/slide_whistle_to_drum_hit.ogg"></audio>
 <audio id="coinSound" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
 <audio id="deathSound" src="https://actions.google.com/sounds/v1/cartoon/metal_twang.ogg"></audio>
@@ -218,7 +216,6 @@
   const retryBtn = document.getElementById("retryBtn");
   const winRetryBtn = document.getElementById("winRetryBtn");
 
-  // Controles de toque
   const btnLeft = document.getElementById("btnLeft");
   const btnRight = document.getElementById("btnRight");
   const btnJump = document.getElementById("btnJump");
@@ -237,17 +234,14 @@
   let loopId = null;
   let gameStarted = false;
 
-  // Controlo especial para pulo por botao toque 
   let jumpTouchCount = 0;
   let jumpTouchLastTime = 0;
-  const jumpTouchDelay = 400; // ms para resetar contador pulo
+  const jumpTouchDelay = 400;
 
-  // Nova variável para controlar o voo da asa
   let hasWing = false;
-  let wingFlyTime = 0;      // tempo restante de voo (ms)
-  const wingFlyDuration = 4000;  // tempo total voo (4 segundos)
+  let wingFlyTime = 0;
+  const wingFlyDuration = 4000;
 
-  // Função para gerar inimigos dinamicamente conforme nível (até 5 fases)
   function generateEnemies(level) {
     const baseEnemies = [
       { x: 500, y: 310, width: 40, height: 40, vx: 1, dead: false },
@@ -258,7 +252,7 @@
       { x: 3200, y: 310, width: 40, height: 40, vx: -1, dead: false },  
     ];
     let count = Math.min(level + 1, baseEnemies.length);
-    let speedMultiplier = 1 + (level -1)*0.3; // aumenta 30% por nível
+    let speedMultiplier = 1 + (level -1)*0.3;
     return baseEnemies.slice(0, count).map(enemy => ({
       ...enemy,
       vx: (enemy.vx > 0 ? 1 : -1) * speedMultiplier,
@@ -266,11 +260,10 @@
     }));
   }
 
-  // Carrega blocos para os níveis (adiciona bloco de asa na fase 2)
   function generateBlocksForLevel(level) {
     const baseBlocks = [
-      { x: 500, y: 200, width: 40, height: 40, type: "surpresa", active: true },
-      { x: 550, y: 200, width: 40, height: 40, type: "quebravel", active: true }
+      { x: 500, y: 200, width: 40, height: 40, type: "surprise", active: true },
+      { x: 550, y: 200, width: 40, height: 40, type: "breakable", active: true }
     ];
     if(level === 2){
       baseBlocks.push({
@@ -321,7 +314,7 @@
 
   function updatePowerupHUD() {
     if(hasWing){
-      powerupIndicator.textContent = `Asa ativa! Tempo restante: ${Math.ceil(wingFlyTime/1000)}s`;
+      powerupIndicator.textContent = `Wing active! Time remaining: ${Math.ceil(wingFlyTime/1000)}s`;
     } else {
       powerupIndicator.textContent = "";
     }
@@ -362,7 +355,6 @@
     actuallyStartGame();
   });
 
-  // Controles teclado (PC)
   document.addEventListener("keydown", e => {
     keys[e.key.toLowerCase()] = true;
     if ((e.key === " " || e.key === "ArrowUp" || e.key.toLowerCase() === "w") && player.alive) {
@@ -379,7 +371,6 @@
     keys[e.key.toLowerCase()] = false;
   });
 
-  // Controles toque: mover esquerda
   btnLeft.addEventListener("touchstart", e => {
     keys["arrowleft"] = true;
     btnLeft.classList.add("active");
@@ -396,7 +387,6 @@
     e.preventDefault();
   });
 
-  // Controles toque: mover direita
   btnRight.addEventListener("touchstart", e => {
     keys["arrowright"] = true;
     btnRight.classList.add("active");
@@ -413,7 +403,6 @@
     e.preventDefault();
   });
 
-  // Controles toque: pular com detecção de múltiplos toques para pulo até triplo
   btnJump.addEventListener("touchstart", e => {
     const now = Date.now();
     if (now - jumpTouchLastTime > jumpTouchDelay) {
@@ -452,24 +441,19 @@
       return;
     }
 
-    // Movimento horizontal
     player.vx = 0;
     if(keys["arrowright"] || keys["d"]) player.vx = speed;
     if(keys["arrowleft"] || keys["a"]) player.vx = -speed;
 
     player.x += player.vx;
 
-    // Limitar jogador para a esquerda da tela (não sair do mundo)
     if(player.x < 0) player.x = 0;
-    // Limitar jogador para a direita do chão
     if(player.x + player.width > floor.width) player.x = floor.width - player.width;
 
-    // Gravidade e salto com asa
     if(hasWing && wingFlyTime > 0 && keys["arrowup"]) {
-      // Voar (reduce a gravidade e permite subir)
-      player.dy += gravity * 0.15; // bem mais lento caindo
-      player.dy -= 0.8;             // subida acelerada
-      wingFlyTime -= 16;           // decrementa tempo (aprox 60fps)
+      player.dy += gravity * 0.15;
+      player.dy -= 0.8;
+      wingFlyTime -= 16;
       updatePowerupHUD();
       if(wingFlyTime <= 0){
         hasWing = false;
@@ -483,18 +467,15 @@
 
     player.onGround = false;
 
-    // Colisão com chão
     if(player.y + player.height >= floor.y){
       player.y = floor.y - player.height;
       player.dy = 0;
       player.onGround = true;
       player.jumpCount = 0;
-      jumpTouchCount = 0; // reset contador de pulos ao tocar no chão
-      // Se cair no chão reinicia wingFlyTime se tiver asa
+      jumpTouchCount = 0;
       if(hasWing) wingFlyTime = wingFlyDuration;
     }
 
-    // Colisões com plataformas e blocos
     platforms.forEach(p => {
       if(player.y + player.height <= p.y + 10 &&
          player.y + player.height + player.dy >= p.y &&
@@ -509,7 +490,6 @@
       }
     });
 
-    // Colisão com blocos para ativar recompensas e asa
     blocks.forEach(b => {
       if(!b.active) return;
       const hitBottom = player.y <= b.y + b.height &&
@@ -518,13 +498,13 @@
                         player.x < b.x + b.width &&
                         player.dy < 0;
       if(hitBottom){
-        if(b.type === "surpresa"){
+        if(b.type === "surprise"){
           coinSound.currentTime = 0;
           coinSound.play();
           b.active = false;
           score += 100;
           scoreDisplay.textContent = score;
-        } else if(b.type === "quebravel"){
+        } else if(b.type === "breakable"){
           blockSound.currentTime = 0;
           blockSound.play();
           b.active = false;
@@ -540,7 +520,6 @@
       }
     });
 
-    // Coleta moedas
     coins.forEach(c => {
       if(!c.collected &&
          player.x < c.x + 20 &&
@@ -555,14 +534,12 @@
       }
     });
 
-    // Movimento inimigos
     enemies.forEach(e => {
       if(e.dead) return;
       e.x += e.vx;
       if(e.x <= 0) e.vx = Math.abs(e.vx);
       if(e.x + e.width >= floor.width) e.vx = -Math.abs(e.vx);
 
-      // Colisão jogador x inimigo
       const hit = player.x < e.x + e.width &&
                   player.x + player.width > e.x &&
                   player.y < e.y + e.height &&
@@ -577,7 +554,6 @@
       }
     });
 
-    // Verifica vitória do nível
     if(player.x < flag.x + flag.width &&
        player.x + player.width > flag.x &&
        player.y < flag.y + flag.height &&
@@ -587,7 +563,6 @@
         currentLevel++;
         loadLevel(currentLevel);
       } else {
-        // Vitória final
         gameContainer.classList.remove("active");
         winScreen.classList.add("active");
         finalScoreDisplay.textContent = score;
@@ -597,13 +572,11 @@
       }
     }
 
-    // Atualiza câmera centrada no jogador
     cameraX = player.x - canvas.width / 2;
     if(cameraX < 0) cameraX = 0;
     if(cameraX + canvas.width > floor.width) cameraX = floor.width - canvas.width;
   }
 
-  // Desenha asas nas costas do jogador, se powerup ativado
   function drawWings(x, y, width, height) {
     ctx.save();
     ctx.translate(x + width*0.1, y + height*0.4);
@@ -611,14 +584,12 @@
     ctx.shadowColor = 'rgba(255, 215, 0, 0.8)';
     ctx.shadowBlur = 8;
 
-    // Asa esquerda
     ctx.beginPath();
     ctx.moveTo(0, 0);
     ctx.bezierCurveTo(-15, -30, -40, -20, -30, 20);
     ctx.bezierCurveTo(-20, 40, 5, 40, 0, 0);
     ctx.fill();
 
-    // Asa direita
     ctx.beginPath();
     ctx.moveTo(width*0.8, 0);
     ctx.bezierCurveTo(width*0.8+15, -30, width*0.8+40, -20, width*0.8+30, 20);
@@ -628,33 +599,28 @@
     ctx.restore();
   }
 
-  // Desenho simplificado do jogador “careca, pele clara, olhos orientais, roupa azul”
   function drawPlayer(x, y, width, height) {
-    // Corpo azul (roupa)
     ctx.fillStyle = "#0033cc";
     ctx.fillRect(x + width*0.2, y + height*0.5, width*0.6, height*0.45);
 
-    // Cabeça (pele clara)
-    ctx.fillStyle = "#f9d4b7"; // tom pele clara
+    ctx.fillStyle = "#f9d4b7";
     ctx.beginPath();
     ctx.ellipse(x + width/2, y + height*0.3, width*0.32, height*0.32, 0, 0, 2 * Math.PI);
     ctx.fill();
 
-    // Olhos orientais (pálpebras e íris)
     ctx.strokeStyle = "#2a2a2a";
     ctx.lineWidth = 2;
-    // olho esquerdo
+
     ctx.beginPath();
     ctx.moveTo(x + width*0.3, y + height*0.25);
     ctx.quadraticCurveTo(x + width*0.38, y + height*0.18, x + width*0.46, y + height*0.25);
     ctx.stroke();
-    // olho direito
+
     ctx.beginPath();
     ctx.moveTo(x + width*0.54, y + height*0.25);
     ctx.quadraticCurveTo(x + width*0.62, y + height*0.18, x + width*0.7, y + height*0.25);
     ctx.stroke();
 
-    // íris pequena preta
     ctx.fillStyle = "#1a1a1a";
     ctx.beginPath();
     ctx.ellipse(x + width*0.38, y + height*0.27, width*0.05, height*0.04, 0, 0, 2 * Math.PI);
@@ -663,7 +629,6 @@
     ctx.ellipse(x + width*0.62, y + height*0.27, width*0.05, height*0.04, 0, 0, 2 * Math.PI);
     ctx.fill();
 
-    // Nariz (linha simples)
     ctx.strokeStyle = "#b68d58";
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -671,14 +636,12 @@
     ctx.lineTo(x + width/2, y + height*0.38);
     ctx.stroke();
 
-    // Boca simples (curva neutra)
     ctx.strokeStyle = "#b55454";
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.quadraticCurveTo(x + width*0.45, y + height*0.43, x + width*0.55, y + height*0.43);
     ctx.stroke();
 
-    // Careca - topo da cabeça com sombra suave (gradiente)
     let grad = ctx.createRadialGradient(x + width/2, y + height*0.3, width*0.1, x + width/2, y + height*0.3, width*0.3);
     grad.addColorStop(0, "rgba(249, 212, 183, 1)");
     grad.addColorStop(1, "rgba(215, 182, 145, 0.6)");
@@ -687,7 +650,6 @@
     ctx.ellipse(x + width/2, y + height*0.3, width*0.32, height*0.32, 0, 0, Math.PI, false);
     ctx.fill();
 
-    // Desenha asas se powerup ativo
     if(hasWing){
       drawWings(x,y,width,height);
     }
@@ -698,30 +660,26 @@
     ctx.save();
     ctx.translate(-cameraX, 0);
 
-    // Desenha o fundo do chão
     const grd = ctx.createLinearGradient(0, floor.y, 0, floor.y + floor.height);
     grd.addColorStop(0, "#228B22");
     grd.addColorStop(1, "#006400");
     ctx.fillStyle = grd;
     ctx.fillRect(floor.x, floor.y, floor.width, floor.height);
 
-    // Desenha plataformas
     platforms.forEach(p => {
       ctx.fillStyle = "#444";
       ctx.fillRect(p.x, p.y, p.width, p.height);
     });
 
-    // Desenha blocos
     blocks.forEach(b => {
       if(!b.active) return;
       let color;
-      if(b.type === "surpresa") color = "#FF8C00";
-      else if(b.type === "quebravel") color = "#8B4513";
-      else if(b.type === "wing") color = "#FFD700";  // Cor dourada para bloco asa
+      if(b.type === "surprise") color = "#FF8C00";
+      else if(b.type === "breakable") color = "#8B4513";
+      else if(b.type === "wing") color = "#FFD700";
       else color = "#666";
       ctx.fillStyle = color;
       ctx.fillRect(b.x, b.y, b.width, b.height);
-      // Desenho simples para bloco asa (um pequeno símbolo de asa)
       if(b.type === "wing"){
         ctx.strokeStyle = "#AA8800";
         ctx.lineWidth = 2;
@@ -735,7 +693,6 @@
       }
     });
 
-    // Desenha moedas
     coins.forEach(c => {
       if(!c.collected){
         ctx.fillStyle = "gold";
@@ -748,12 +705,10 @@
       }
     });
 
-    // Desenha inimigos
     enemies.forEach(e => {
       if(!e.dead){
         ctx.fillStyle = "purple";
         ctx.fillRect(e.x, e.y, e.width, e.height);
-        // olho simples para dar vida
         ctx.fillStyle = "white";
         ctx.beginPath();
         ctx.arc(e.x + 10, e.y + 15, 5, 0, Math.PI * 2);
@@ -765,7 +720,6 @@
       }
     });
 
-    // Desenha bandeira
     ctx.fillStyle = "white";
     ctx.fillRect(flag.x, flag.y, flag.width, flag.height);
     ctx.fillStyle = "red";
@@ -775,7 +729,6 @@
     ctx.lineTo(flag.x + flag.width, flag.y + 20);
     ctx.fill();
 
-    // Desenha o jogador personalizado
     drawPlayer(player.x, player.y, player.width, player.height);
 
     ctx.restore();
