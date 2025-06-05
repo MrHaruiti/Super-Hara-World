@@ -303,6 +303,8 @@
   let platforms, enemies, coins, flag, floor, blocks;
   let score = 0;
 
+  let fireballs = [];
+
   let loopId = null;
   let gameStarted = false;
 
@@ -313,6 +315,33 @@
   let hasWing = false;
   let wingFlyTime = 0;
   const wingFlyDuration = 4000;
+
+  class Fireball {
+    constructor(x, y, vx){
+      this.x = x;
+      this.y = y;
+      this.radius = 8;
+      this.vx = vx;
+      this.active = true;
+    }
+    update(){
+      this.x += this.vx;
+      if(this.x < 0 || this.x > floor.width){
+        this.active = false;
+      }
+    }
+    draw(ctx, cameraX){
+      ctx.save();
+      ctx.translate(-cameraX,0);
+      ctx.fillStyle = "orange";
+      ctx.shadowColor = "red";
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
 
   function generateEnemies(level) {
     const baseGroundEnemies = [
@@ -333,17 +362,21 @@
     let speedMultiplier = 1 + (level - 1) * 0.3;
 
     let countGround = Math.min(level + 1, baseGroundEnemies.length);
-    for(let i=0; i < countGround; i++){
+    for(let i = 0; i < countGround; i++){
       let e = {...baseGroundEnemies[i]};
       e.vx = (e.vx > 0 ? 1 : -1) * speedMultiplier;
+      e.canShoot = (level >= 3);
+      e.shootCooldown = Math.random() * 2000 + 1000;
+      e.lastShootTime = 0;
       enemies.push(e);
     }
 
-    if(level === 2){
+    if(level === 2 || level > 3){
       flyingBase.forEach(fly => {
         let f = {...fly};
         f.vx = f.vx * speedMultiplier;
         f.vyDir = 1;
+        f.canShoot = false;
         enemies.push(f);
       });
     }
@@ -388,6 +421,8 @@
     flag = { x: 3900, y: 270, width: 20, height: 80 };
 
     enemies = generateEnemies(level);
+
+    fireballs = [];
 
     player.x = 100;
     player.y = floor.y - player.height;
@@ -625,16 +660,29 @@
       }
     });
 
+    let now = performance.now();
     enemies.forEach(e => {
       if(e.dead) return;
+
+      if(e.canShoot && currentLevel >=3){
+        if(!e.lastShootTime) e.lastShootTime = 0;
+        if(now - e.lastShootTime > e.shootCooldown){
+          let dir = (player.x + player.width/2) < (e.x + e.width/2) ? -1 : 1;
+          fireballs.push(new Fireball(
+            e.x + (dir > 0 ? e.width : 0),
+            e.y + e.height/2,
+            6 * dir
+          ));
+          e.lastShootTime = now;
+          e.shootCooldown = 1000 + Math.random() * 1500;
+        }
+      }
 
       if(e.vy !== undefined){
         e.x += e.vx;
         e.y += e.vy * e.vyDir;
-
         if(e.y <= 170) e.vyDir = 1;
         if(e.y >= 240) e.vyDir = -1;
-
         if(e.x <= 0) e.vx = Math.abs(e.vx);
         if(e.x + e.width >= floor.width) e.vx = -Math.abs(e.vx);
       } else {
@@ -654,6 +702,18 @@
         } else {
           player.alive = false;
         }
+      }
+    });
+
+    fireballs = fireballs.filter(fireball => fireball.active);
+    fireballs.forEach(fireball => {
+      fireball.update();
+      const dx = (player.x + player.width/2) - fireball.x;
+      const dy = (player.y + player.height/2) - fireball.y;
+      const distance = Math.sqrt(dx*dx + dy*dy);
+      if(distance < fireball.radius + Math.min(player.width, player.height)/2){
+        player.alive = false;
+        fireball.active = false;
       }
     });
 
@@ -708,7 +768,7 @@
 
     ctx.fillStyle = "#f9d4b7";
     ctx.beginPath();
-    ctx.ellipse(x + width/2, y + height*0.3, width*0.32, height*0.32, 0, 0, 2 * Math.PI);
+    ctx.ellipse(x + width/2, y + height*0.3, width*0.32, height*0.32, 0, 0, 2*Math.PI);
     ctx.fill();
 
     ctx.strokeStyle = "#2a2a2a";
@@ -726,10 +786,10 @@
 
     ctx.fillStyle = "#1a1a1a";
     ctx.beginPath();
-    ctx.ellipse(x + width*0.38, y + height*0.27, width*0.05, height*0.04, 0, 0, 2 * Math.PI);
+    ctx.ellipse(x + width*0.38, y + height*0.27, width*0.05, height*0.04, 0, 0, 2*Math.PI);
     ctx.fill();
     ctx.beginPath();
-    ctx.ellipse(x + width*0.62, y + height*0.27, width*0.05, height*0.04, 0, 0, 2 * Math.PI);
+    ctx.ellipse(x + width*0.62, y + height*0.27, width*0.05, height*0.04, 0, 0, 2*Math.PI);
     ctx.fill();
 
     ctx.strokeStyle = "#b68d58";
@@ -754,7 +814,7 @@
     ctx.fill();
 
     if(hasWing){
-      drawWings(x,y,width,height);
+      drawWings(x, y, width, height);
     }
   }
 
@@ -811,13 +871,17 @@
     enemies.forEach(e => {
       if(!e.dead){
         if(e.vy !== undefined){
-          // flying enemy: crow sprite from offscreen canvas
+          // Flying enemy: use crowCanvas sprite
           ctx.drawImage(crowCanvas, e.x, e.y, e.width, e.height);
         } else {
-          // ground enemy: donut sprite from offscreen canvas
+          // Ground enemy: use donutCanvas sprite
           ctx.drawImage(donutCanvas, e.x, e.y, e.width, e.height);
         }
       }
+    });
+
+    fireballs.forEach(fireball => {
+      fireball.draw(ctx, cameraX);
     });
 
     ctx.fillStyle = "white";
@@ -840,7 +904,6 @@
     loopId = requestAnimationFrame(gameLoop);
   }
 
-  // Usado em update() replicado para manter contexto
   function update() {
     if(!player.alive){
       if(gameContainer.classList.contains("active")){
@@ -945,16 +1008,29 @@
       }
     });
 
+    let now = performance.now();
     enemies.forEach(e => {
       if(e.dead) return;
+
+      if(e.canShoot && currentLevel >= 3){
+        if(!e.lastShootTime) e.lastShootTime = 0;
+        if(now - e.lastShootTime > e.shootCooldown){
+          let dir = (player.x + player.width/2) < (e.x + e.width/2) ? -1 : 1;
+          fireballs.push(new Fireball(
+            e.x + (dir > 0 ? e.width : 0),
+            e.y + e.height/2,
+            6 * dir
+          ));
+          e.lastShootTime = now;
+          e.shootCooldown = 1000 + Math.random() * 1500;
+        }
+      }
 
       if(e.vy !== undefined){
         e.x += e.vx;
         e.y += e.vy * e.vyDir;
-
         if(e.y <= 170) e.vyDir = 1;
         if(e.y >= 240) e.vyDir = -1;
-
         if(e.x <= 0) e.vx = Math.abs(e.vx);
         if(e.x + e.width >= floor.width) e.vx = -Math.abs(e.vx);
       } else {
@@ -974,6 +1050,18 @@
         } else {
           player.alive = false;
         }
+      }
+    });
+
+    fireballs = fireballs.filter(fireball => fireball.active);
+    fireballs.forEach(fireball => {
+      fireball.update();
+      const dx = (player.x + player.width/2) - fireball.x;
+      const dy = (player.y + player.height/2) - fireball.y;
+      const distance = Math.sqrt(dx*dx + dy*dy);
+      if(distance < fireball.radius + Math.min(player.width, player.height)/2){
+        player.alive = false;
+        fireball.active = false;
       }
     });
 
