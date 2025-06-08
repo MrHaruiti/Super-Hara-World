@@ -171,7 +171,11 @@
 
 <div id="gameOver">
   <h1>GAME OVER</h1>
-  <button class="btn" id="retryBtn">Try Again</button>
+  <p>Current Score: <span id="gameOverScore">0</span></p>
+  <div style="display: flex; flex-direction: column; gap: 10px; align-items: center;">
+    <button class="btn" id="continueBtn">Continue Level (-<span id="continueCost">0</span> points)</button>
+    <button class="btn" id="restartBtn">Restart from Level 1</button>
+  </div>
 </div>
 
 <div id="winScreen">
@@ -191,6 +195,8 @@
 <audio id="deathSound" src="https://actions.google.com/sounds/v1/cartoon/metal_twang.ogg"></audio>
 <audio id="winSound" src="https://actions.google.com/sounds/v1/cartoon/concussive_drum_hit.ogg"></audio>
 <audio id="blockSound" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
+<audio id="killEnemySound" src="https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg"></audio>
+<audio id="levelCompleteSound" src="https://actions.google.com/sounds/v1/cartoon/magical_twinkle.ogg"></audio>
 
 <script>
 (() => {
@@ -283,10 +289,15 @@
   const deathSound = document.getElementById("deathSound");
   const winSound = document.getElementById("winSound");
   const blockSound = document.getElementById("blockSound");
+  const killEnemySound = document.getElementById("killEnemySound");
+  const levelCompleteSound = document.getElementById("levelCompleteSound");
 
   const startBtn = document.getElementById("startBtn");
-  const retryBtn = document.getElementById("retryBtn");
+  const continueBtn = document.getElementById("continueBtn");
+  const restartBtn = document.getElementById("restartBtn");
   const winRetryBtn = document.getElementById("winRetryBtn");
+  const gameOverScore = document.getElementById("gameOverScore");
+  const continueCost = document.getElementById("continueCost");
 
   const btnLeft = document.getElementById("btnLeft");
   const btnRight = document.getElementById("btnRight");
@@ -344,33 +355,50 @@
   }
 
   function generateEnemies(level) {
-    const baseGroundEnemies = [
+    // Base ground enemies with extended positions for level 1
+    const baseGroundEnemies = level === 1 ? [
+      // Even more spread out enemies for level 1 with very slow speed
+      { x: 800, y: 310, width: 40, height: 40, vx: 0.5, dead: false },
+      { x: 1600, y: 310, width: 40, height: 40, vx: -0.5, dead: false },
+      { x: 2400, y: 310, width: 40, height: 40, vx: 0.5, dead: false },
+      { x: 3200, y: 310, width: 40, height: 40, vx: -0.5, dead: false },
+      { x: 4000, y: 310, width: 40, height: 40, vx: 0.5, dead: false },
+      { x: 4800, y: 310, width: 40, height: 40, vx: -0.5, dead: false }
+    ] : [
+      // Original enemy positions for other levels
       { x: 500, y: 310, width: 40, height: 40, vx: 1, dead: false },
       { x: 1200, y: 310, width: 40, height: 40, vx: -1, dead: false },
       { x: 1800, y: 310, width: 40, height: 40, vx: 1, dead: false },
       { x: 2400, y: 310, width: 40, height: 40, vx: -1, dead: false },
       { x: 2800, y: 310, width: 40, height: 40, vx: 1, dead: false },
-      { x: 3200, y: 310, width: 40, height: 40, vx: -1, dead: false },
+      { x: 3200, y: 310, width: 40, height: 40, vx: -1, dead: false }
     ];
+
     const flyingBase = [
       { x: 700, y: 200, width: 40, height: 30, vx: 1.5, vy: 0.8, vyDir: 1, dead: false },
       { x: 1500, y: 180, width: 40, height: 30, vx: -1.2, vy: 0.6, vyDir: 1, dead: false },
-      { x: 2200, y: 220, width: 40, height: 30, vx: 1.8, vy: 0.7, vyDir: 1, dead: false },
+      { x: 2200, y: 220, width: 40, height: 30, vx: 1.8, vy: 0.7, vyDir: 1, dead: false }
     ];
 
     let enemies = [];
-    let speedMultiplier = 1 + (level - 1) * 0.3;
+    let speedMultiplier = level === 1 ? 1 : 1 + (level - 1) * 0.3;
 
-    let countGround = Math.min(level + 1, baseGroundEnemies.length);
+    // For level 1, use all ground enemies with original speed
+    // For other levels, use limited number based on level
+    let countGround = level === 1 ? baseGroundEnemies.length : Math.min(level + 1, baseGroundEnemies.length);
+    
     for(let i = 0; i < countGround; i++){
       let e = {...baseGroundEnemies[i]};
-      e.vx = (e.vx > 0 ? 1 : -1) * speedMultiplier;
+      if (level !== 1) {
+        e.vx = (e.vx > 0 ? 1 : -1) * speedMultiplier;
+      }
       e.canShoot = (level >= 3);
       e.shootCooldown = Math.random() * 2000 + 1000;
       e.lastShootTime = 0;
       enemies.push(e);
     }
 
+    // Only add flying enemies for level 2 and above
     if(level === 2 || level > 3){
       flyingBase.forEach(fly => {
         let f = {...fly};
@@ -385,40 +413,137 @@
   }
 
   function generateBlocksForLevel(level) {
-    const baseBlocks = [
-      { x: 500, y: 200, width: 40, height: 40, type: "surprise", active: true },
-      { x: 550, y: 200, width: 40, height: 40, type: "breakable", active: true }
-    ];
-    if(level === 2){
-      baseBlocks.push({
-        x: 1000, y: 180, width: 40, height: 40, type: "wing", active: true
-      });
+    let baseBlocks = [];
+    if(level === 2) {
+      baseBlocks = [
+        { x: 500, y: 200, width: 40, height: 40, type: "surprise", active: true },
+        { x: 550, y: 200, width: 40, height: 40, type: "breakable", active: true },
+        { x: 1000, y: 180, width: 40, height: 40, type: "wing", active: true }
+      ];
+    } else if(level === 3) {
+      baseBlocks = [
+        { x: 600, y: 200, width: 40, height: 40, type: "surprise", active: true },  // Coin block
+        { x: 1200, y: 180, width: 40, height: 40, type: "wing", active: true },     // Wing powerup
+        { x: 1800, y: 200, width: 40, height: 40, type: "surprise", active: true }, // Coin block
+        { x: 2400, y: 180, width: 40, height: 40, type: "breakable", active: true },// Empty block
+        { x: 2800, y: 180, width: 40, height: 40, type: "wing", active: true },     // Wing powerup
+        { x: 3200, y: 200, width: 40, height: 40, type: "breakable", active: true } // Empty block
+      ];
+    } else {
+      baseBlocks = [
+        { x: 500, y: 200, width: 40, height: 40, type: "surprise", active: true },
+        { x: 550, y: 200, width: 40, height: 40, type: "breakable", active: true }
+      ];
     }
     return baseBlocks;
   }
 
   function loadLevel(level) {
-    floor = { x: 0, y: 350, width: 4000, height: 50 };
-    platforms = [
-      { x: 300, y: 300, width: 100, height: 10 },
-      { x: 600, y: 260, width: 100, height: 10 },
-      { x: 900, y: 220, width: 120, height: 10 },
-      { x: 1200, y: 280, width: 100, height: 10 },
-      { x: 1600, y: 250, width: 140, height: 10 },
-      { x: 2000, y: 200, width: 120, height: 10 },
-      { x: 2400, y: 270, width: 100, height: 10 },
-      { x: 2800, y: 230, width: 100, height: 10 },
-      { x: 3200, y: 250, width: 110, height: 10 }
-    ];
-    coins = [
-      { x: 320, y: 260, collected: false },
-      { x: 640, y: 220, collected: false },
-      { x: 920, y: 180, collected: false },
-      { x: 2000, y: 160, collected: false },
-      { x: 3100, y: 210, collected: false }
-    ];
+    // Extended floor width for level 1
+    floor = level === 1 
+      ? { x: 0, y: 350, width: 6000, height: 50 }
+      : { x: 0, y: 350, width: 4000, height: 50 };
+
+    // Platforms with easier obstacles for level 1
+    if (level === 1) {
+      platforms = [
+        // Initial platforms with even more generous widths and closer spacing
+        { x: 300, y: 280, width: 160, height: 10 },
+        { x: 550, y: 280, width: 160, height: 10 },
+        { x: 800, y: 280, width: 160, height: 10 },
+        { x: 1050, y: 280, width: 160, height: 10 },
+        { x: 1300, y: 280, width: 160, height: 10 },
+        { x: 1550, y: 280, width: 160, height: 10 },
+        { x: 1800, y: 280, width: 160, height: 10 },
+        { x: 2050, y: 280, width: 160, height: 10 },
+        { x: 2300, y: 280, width: 160, height: 10 },
+        // Additional easy platforms with consistent height
+        { x: 2550, y: 280, width: 160, height: 10 },
+        { x: 2800, y: 280, width: 160, height: 10 },
+        { x: 3050, y: 280, width: 160, height: 10 },
+        { x: 3300, y: 280, width: 160, height: 10 },
+        { x: 3550, y: 280, width: 160, height: 10 },
+        { x: 3800, y: 280, width: 160, height: 10 },
+        { x: 4050, y: 280, width: 160, height: 10 },
+        { x: 4300, y: 280, width: 160, height: 10 },
+        { x: 4550, y: 280, width: 160, height: 10 },
+        { x: 4800, y: 280, width: 160, height: 10 },
+        { x: 5050, y: 280, width: 160, height: 10 },
+        { x: 5300, y: 280, width: 160, height: 10 },
+        { x: 5550, y: 280, width: 160, height: 10 }
+      ];
+      // Extended coin placement for level 1 with more frequent rewards
+      coins = [
+        { x: 320, y: 240, collected: false },
+        { x: 570, y: 240, collected: false },
+        { x: 820, y: 240, collected: false },
+        { x: 1070, y: 240, collected: false },
+        { x: 1320, y: 240, collected: false },
+        { x: 1570, y: 240, collected: false },
+        { x: 1820, y: 240, collected: false },
+        { x: 2070, y: 240, collected: false },
+        { x: 2320, y: 240, collected: false },
+        { x: 2570, y: 240, collected: false },
+        { x: 2820, y: 240, collected: false },
+        { x: 3070, y: 240, collected: false },
+        { x: 3320, y: 240, collected: false },
+        { x: 3570, y: 240, collected: false },
+        { x: 3820, y: 240, collected: false },
+        { x: 4070, y: 240, collected: false },
+        { x: 4320, y: 240, collected: false },
+        { x: 4570, y: 240, collected: false },
+        { x: 4820, y: 240, collected: false },
+        { x: 5070, y: 240, collected: false },
+        { x: 5320, y: 240, collected: false },
+        { x: 5570, y: 240, collected: false }
+      ];
+    } else {
+      // Level 3: Smaller but more frequent platforms
+      if (level === 3) {
+        platforms = [
+          { x: 300, y: 300, width: 80, height: 10 },
+          { x: 500, y: 280, width: 80, height: 10 },
+          { x: 700, y: 260, width: 80, height: 10 },
+          { x: 900, y: 240, width: 80, height: 10 },
+          { x: 1100, y: 260, width: 80, height: 10 },
+          { x: 1300, y: 280, width: 80, height: 10 },
+          { x: 1500, y: 260, width: 80, height: 10 },
+          { x: 1700, y: 240, width: 80, height: 10 },
+          { x: 1900, y: 260, width: 80, height: 10 },
+          { x: 2100, y: 280, width: 80, height: 10 },
+          { x: 2300, y: 260, width: 80, height: 10 },
+          { x: 2500, y: 240, width: 80, height: 10 },
+          { x: 2700, y: 260, width: 80, height: 10 },
+          { x: 2900, y: 280, width: 80, height: 10 },
+          { x: 3100, y: 260, width: 80, height: 10 },
+          { x: 3300, y: 240, width: 80, height: 10 }
+        ];
+      } else {
+        platforms = [
+          { x: 300, y: 300, width: 100, height: 10 },
+          { x: 600, y: 260, width: 100, height: 10 },
+          { x: 900, y: 220, width: 120, height: 10 },
+          { x: 1200, y: 280, width: 100, height: 10 },
+          { x: 1600, y: 250, width: 140, height: 10 },
+          { x: 2000, y: 200, width: 120, height: 10 },
+          { x: 2400, y: 270, width: 100, height: 10 },
+          { x: 2800, y: 230, width: 100, height: 10 },
+          { x: 3200, y: 250, width: 110, height: 10 }
+        ];
+      }
+      coins = [
+        { x: 320, y: 260, collected: false },
+        { x: 640, y: 220, collected: false },
+        { x: 920, y: 180, collected: false },
+        { x: 2000, y: 160, collected: false },
+        { x: 3100, y: 210, collected: false }
+      ];
+    }
     blocks = generateBlocksForLevel(level);
-    flag = { x: 3900, y: 270, width: 20, height: 80 };
+    // Position flag based on level length
+    flag = level === 1 
+      ? { x: 5900, y: 270, width: 20, height: 80 }  // Extended for level 1
+      : { x: 3900, y: 270, width: 20, height: 80 }; // Original position for other levels
 
     enemies = generateEnemies(level);
 
@@ -472,10 +597,29 @@
   }
 
   startBtn.addEventListener("click", startGame);
-  retryBtn.addEventListener("click", () => {
+
+  // Continue current level by spending points
+  continueBtn.addEventListener("click", () => {
+    const cost = currentLevel * 100;
+    if (score >= cost) {
+      score -= cost;
+      scoreDisplay.textContent = score;
+      gameContainer.classList.add("active");
+      gameOver.classList.remove("active");
+      loadLevel(currentLevel); // Reload current level
+    } else {
+      // Disable continue button if not enough points
+      continueBtn.disabled = true;
+      continueBtn.textContent = "Not enough points";
+    }
+  });
+
+  // Restart from level 1 without losing points
+  restartBtn.addEventListener("click", () => {
     currentLevel = 1;
     actuallyStartGame();
   });
+
   winRetryBtn.addEventListener("click", () => {
     currentLevel = 1;
     actuallyStartGame();
@@ -556,189 +700,6 @@
     e.preventDefault();
   });
 
-  function update() {
-    if(!player.alive){
-      if(gameContainer.classList.contains("active")){
-        gameContainer.classList.remove("active");
-      }
-      gameOver.classList.add("active");
-      deathSound.currentTime = 0;
-      deathSound.play();
-      return;
-    }
-
-    player.vx = 0;
-    if(keys["arrowright"] || keys["d"]) player.vx = speed;
-    if(keys["arrowleft"] || keys["a"]) player.vx = -speed;
-
-    player.x += player.vx;
-
-    if(player.x < 0) player.x = 0;
-    if(player.x + player.width > floor.width) player.x = floor.width - player.width;
-
-    if(hasWing && wingFlyTime > 0 && keys["arrowup"]) {
-      player.dy += gravity * 0.15;
-      player.dy -= 0.8;
-      wingFlyTime -= 16;
-      updatePowerupHUD();
-      if(wingFlyTime <= 0){
-        hasWing = false;
-        updatePowerupHUD();
-      }
-    } else {
-      player.dy += gravity;
-    }
-
-    player.y += player.dy;
-
-    player.onGround = false;
-
-    if(player.y + player.height >= floor.y){
-      player.y = floor.y - player.height;
-      player.dy = 0;
-      player.onGround = true;
-      player.jumpCount = 0;
-      jumpTouchCount = 0;
-      if(hasWing) wingFlyTime = wingFlyDuration;
-    }
-
-    platforms.forEach(p => {
-      if(player.y + player.height <= p.y + 10 &&
-         player.y + player.height + player.dy >= p.y &&
-         player.x + player.width > p.x &&
-         player.x < p.x + p.width) {
-        player.y = p.y - player.height;
-        player.dy = 0;
-        player.onGround = true;
-        player.jumpCount = 0;
-        jumpTouchCount = 0;
-        if(hasWing) wingFlyTime = wingFlyDuration;
-      }
-    });
-
-    blocks.forEach(b => {
-      if(!b.active) return;
-      const hitBottom = player.y <= b.y + b.height &&
-                        player.y + player.height > b.y + b.height &&
-                        player.x + player.width > b.x &&
-                        player.x < b.x + b.width &&
-                        player.dy < 0;
-      if(hitBottom){
-        if(b.type === "surprise"){
-          coinSound.currentTime = 0;
-          coinSound.play();
-          b.active = false;
-          score += 100;
-          scoreDisplay.textContent = score;
-        } else if(b.type === "breakable"){
-          blockSound.currentTime = 0;
-          blockSound.play();
-          b.active = false;
-        } else if(b.type === "wing"){
-          coinSound.currentTime = 0;
-          coinSound.play();
-          b.active = false;
-          hasWing = true;
-          wingFlyTime = wingFlyDuration;
-          updatePowerupHUD();
-        }
-        player.dy = 1;
-      }
-    });
-
-    coins.forEach(c => {
-      if(!c.collected &&
-         player.x < c.x + 20 &&
-         player.x + player.width > c.x &&
-         player.y < c.y + 20 &&
-         player.y + player.height > c.y){
-        c.collected = true;
-        score += 100;
-        scoreDisplay.textContent = score;
-        coinSound.currentTime = 0;
-        coinSound.play();
-      }
-    });
-
-    let now = performance.now();
-    enemies.forEach(e => {
-      if(e.dead) return;
-
-      if(e.canShoot && currentLevel >=3){
-        if(!e.lastShootTime) e.lastShootTime = 0;
-        if(now - e.lastShootTime > e.shootCooldown){
-          let dir = (player.x + player.width/2) < (e.x + e.width/2) ? -1 : 1;
-          fireballs.push(new Fireball(
-            e.x + (dir > 0 ? e.width : 0),
-            e.y + e.height/2,
-            6 * dir
-          ));
-          e.lastShootTime = now;
-          e.shootCooldown = 1000 + Math.random() * 1500;
-        }
-      }
-
-      if(e.vy !== undefined){
-        e.x += e.vx;
-        e.y += e.vy * e.vyDir;
-        if(e.y <= 170) e.vyDir = 1;
-        if(e.y >= 240) e.vyDir = -1;
-        if(e.x <= 0) e.vx = Math.abs(e.vx);
-        if(e.x + e.width >= floor.width) e.vx = -Math.abs(e.vx);
-      } else {
-        e.x += e.vx;
-        if(e.x <= 0) e.vx = Math.abs(e.vx);
-        if(e.x + e.width >= floor.width) e.vx = -Math.abs(e.vx);
-      }
-
-      const hit = player.x < e.x + e.width &&
-                  player.x + player.width > e.x &&
-                  player.y < e.y + e.height &&
-                  player.y + player.height > e.y;
-      if(hit){
-        if(player.dy > 0 && (player.y + player.height - e.y) < 20){
-          e.dead = true;
-          player.dy = baseJumpStrength / 1.5;
-        } else {
-          player.alive = false;
-        }
-      }
-    });
-
-    fireballs = fireballs.filter(fireball => fireball.active);
-    fireballs.forEach(fireball => {
-      fireball.update();
-      const dx = (player.x + player.width/2) - fireball.x;
-      const dy = (player.y + player.height/2) - fireball.y;
-      const distance = Math.sqrt(dx*dx + dy*dy);
-      if(distance < fireball.radius + Math.min(player.width, player.height)/2){
-        player.alive = false;
-        fireball.active = false;
-      }
-    });
-
-    if(player.x < flag.x + flag.width &&
-       player.x + player.width > flag.x &&
-       player.y < flag.y + flag.height &&
-       player.y + player.height > flag.y) {
-
-      if(currentLevel < 5){
-        currentLevel++;
-        loadLevel(currentLevel);
-      } else {
-        gameContainer.classList.remove("active");
-        winScreen.classList.add("active");
-        finalScoreDisplay.textContent = score;
-        powerupIndicator.textContent = "";
-        winSound.currentTime = 0;
-        winSound.play();
-      }
-    }
-
-    cameraX = player.x - canvas.width / 2;
-    if(cameraX < 0) cameraX = 0;
-    if(cameraX + canvas.width > floor.width) cameraX = floor.width - canvas.width;
-  }
 
   function drawWings(x, y, width, height) {
     ctx.save();
@@ -818,11 +779,110 @@
     }
   }
 
+  // Background elements
+  function drawSun(x, y) {
+    ctx.save();
+    const gradient = ctx.createRadialGradient(x, y, 0, x, y, 40);
+    gradient.addColorStop(0, '#FFD700');
+    gradient.addColorStop(1, '#FFA500');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(x, y, 40, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawMoon(x, y) {
+    ctx.save();
+    // Main moon
+    const gradient = ctx.createRadialGradient(x, y, 0, x, y, 35);
+    gradient.addColorStop(0, '#F5F5F5');
+    gradient.addColorStop(1, '#D3D3D3');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(x, y, 35, 0, Math.PI * 2);
+    ctx.fill();
+    // Craters
+    ctx.fillStyle = '#C0C0C0';
+    ctx.beginPath();
+    ctx.arc(x - 15, y + 10, 8, 0, Math.PI * 2);
+    ctx.arc(x + 10, y - 10, 6, 0, Math.PI * 2);
+    ctx.arc(x + 5, y + 15, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawCloud(x, y, scale = 1) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.beginPath();
+    ctx.arc(0, 0, 20, 0, Math.PI * 2);
+    ctx.arc(25, -10, 25, 0, Math.PI * 2);
+    ctx.arc(45, 0, 20, 0, Math.PI * 2);
+    ctx.arc(25, 10, 22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawStar(x, y, size = 2) {
+    ctx.save();
+    ctx.fillStyle = 'white';
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.fill();
+    // Twinkle effect
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.beginPath();
+    ctx.arc(x, y, size + 1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
     ctx.translate(-cameraX, 0);
 
+    // Sky gradient based on level
+    let skyGradient;
+    if (currentLevel === 3) {
+      // Night sky for level 3
+      skyGradient = ctx.createLinearGradient(0, 0, 0, floor.y);
+      skyGradient.addColorStop(0, '#000033');
+      skyGradient.addColorStop(1, '#000066');
+    } else {
+      // Day sky for other levels
+      skyGradient = ctx.createLinearGradient(0, 0, 0, floor.y);
+      skyGradient.addColorStop(0, '#87CEEB');
+      skyGradient.addColorStop(1, '#B0E0E6');
+    }
+    ctx.fillStyle = skyGradient;
+    ctx.fillRect(0, 0, floor.width, floor.y);
+
+    // Draw background elements based on level
+    if (currentLevel === 3) {
+      // Night sky elements
+      drawMoon(cameraX + 100, 100);
+      // Draw stars with slight variation
+      for(let i = 0; i < 50; i++) {
+        const x = (cameraX + (i * 200 + Math.sin(i) * 100)) % floor.width;
+        const y = 50 + Math.cos(i) * 100;
+        drawStar(x, y, 1 + Math.random());
+      }
+    } else {
+      // Day sky elements
+      drawSun(cameraX + 100, 100);
+      // Draw clouds with parallax effect
+      for(let i = 0; i < 8; i++) {
+        const x = (cameraX * 0.7 + (i * 400)) % floor.width;
+        const y = 100 + Math.sin(i) * 50;
+        drawCloud(x, y, 1 + Math.sin(i * 0.5) * 0.3);
+      }
+    }
+
+    // Ground gradient
     const grd = ctx.createLinearGradient(0, floor.y, 0, floor.y + floor.height);
     grd.addColorStop(0, "#228B22");
     grd.addColorStop(1, "#006400");
@@ -898,18 +958,14 @@
     ctx.restore();
   }
 
-  function gameLoop() {
-    update();
-    draw();
-    loopId = requestAnimationFrame(gameLoop);
-  }
-
   function update() {
     if(!player.alive){
       if(gameContainer.classList.contains("active")){
         gameContainer.classList.remove("active");
       }
       gameOver.classList.add("active");
+      gameOverScore.textContent = score;
+      continueCost.textContent = currentLevel * 100;
       deathSound.currentTime = 0;
       deathSound.play();
       return;
@@ -924,11 +980,25 @@
     if(player.x < 0) player.x = 0;
     if(player.x + player.width > floor.width) player.x = floor.width - player.width;
 
-    if(hasWing && wingFlyTime > 0 && keys["arrowup"]) {
-      player.dy += gravity * 0.15;
-      player.dy -= 0.8;
+    if(hasWing && wingFlyTime > 0) {
+      // Full flight control with up/down arrows
+      if(keys["arrowup"] || keys["w"]) {
+        player.dy = -5;  // Move up
+      } else if(keys["arrowdown"] || keys["s"]) {
+        player.dy = 5;   // Move down
+      } else {
+        player.dy = 0;   // Hover in place
+      }
+      
+      // Keep player within screen bounds while flying
+      if(player.y < 50) player.y = 50;  // Don't fly too high
+      if(player.y + player.height > floor.y) {
+        player.y = floor.y - player.height;
+      }
+      
       wingFlyTime -= 16;
       updatePowerupHUD();
+      
       if(wingFlyTime <= 0){
         hasWing = false;
         updatePowerupHUD();
@@ -976,7 +1046,7 @@
           coinSound.currentTime = 0;
           coinSound.play();
           b.active = false;
-          score += 100;
+          score += 1;  // Reduced coin value
           scoreDisplay.textContent = score;
         } else if(b.type === "breakable"){
           blockSound.currentTime = 0;
@@ -1001,7 +1071,7 @@
          player.y < c.y + 20 &&
          player.y + player.height > c.y){
         c.collected = true;
-        score += 100;
+        score += 1;  // Reduced coin value
         scoreDisplay.textContent = score;
         coinSound.currentTime = 0;
         coinSound.play();
@@ -1012,17 +1082,17 @@
     enemies.forEach(e => {
       if(e.dead) return;
 
-      if(e.canShoot && currentLevel >= 3){
-        if(!e.lastShootTime) e.lastShootTime = 0;
-        if(now - e.lastShootTime > e.shootCooldown){
-          let dir = (player.x + player.width/2) < (e.x + e.width/2) ? -1 : 1;
-          fireballs.push(new Fireball(
-            e.x + (dir > 0 ? e.width : 0),
-            e.y + e.height/2,
-            6 * dir
-          ));
-          e.lastShootTime = now;
-          e.shootCooldown = 1000 + Math.random() * 1500;
+      // Level 3: Much slower enemy movement
+      if(currentLevel === 3) {
+        if(e.vy !== undefined) {
+          // Flying enemies: very gentle up/down movement
+          e.vy = 0.5;  // Much slower vertical speed
+          if(e.y <= 150) e.vyDir = 1;
+          if(e.y >= 250) e.vyDir = -1;
+          e.vx = e.vx * 0.8; // Slower horizontal speed for flying enemies
+        } else {
+          // Ground enemies: almost same speed as level 2
+          e.vx = e.vx * 1.05; // Only 5% speed increase
         }
       }
 
@@ -1047,6 +1117,10 @@
         if(player.dy > 0 && (player.y + player.height - e.y) < 20){
           e.dead = true;
           player.dy = baseJumpStrength / 1.5;
+          score += 10;  // Points for killing enemy
+          scoreDisplay.textContent = score;
+          killEnemySound.currentTime = 0;
+          killEnemySound.play();
         } else {
           player.alive = false;
         }
@@ -1071,6 +1145,8 @@
        player.y + player.height > flag.y) {
 
       if(currentLevel < 5){
+        levelCompleteSound.currentTime = 0;
+        levelCompleteSound.play();
         currentLevel++;
         loadLevel(currentLevel);
       } else {
@@ -1086,6 +1162,14 @@
     cameraX = player.x - canvas.width / 2;
     if(cameraX < 0) cameraX = 0;
     if(cameraX + canvas.width > floor.width) cameraX = floor.width - canvas.width;
+  }
+
+  function gameLoop() {
+    if(player && player.alive !== undefined) {
+      update();
+      draw();
+    }
+    loopId = requestAnimationFrame(gameLoop);
   }
 
   gameLoop();
